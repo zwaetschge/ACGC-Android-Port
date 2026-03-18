@@ -603,6 +603,34 @@ static void pc_gx_load_tex_obj_impl(void* obj, u32 id) {
     if (id >= 8) return;
 
     PCTexObj* o = (PCTexObj*)obj;
+
+#ifdef TARGET_PC
+    {
+        static int tex_diag_frame = 0;
+        static int tex_diag_count = 0;
+        tex_diag_count++;
+        if (0 && tex_diag_frame < 3 && tex_diag_count <= 30) { /* disabled */
+            fprintf(stderr, "[TEX] id=%d fmt=0x%x %dx%d ptr=%p tlut=%d",
+                    id, o->format, o->width, o->height, o->image_ptr, o->tlut_name);
+            if (o->image_ptr) {
+                u8* d = (u8*)o->image_ptr;
+                fprintf(stderr, " data=[%02x%02x%02x%02x]", d[0], d[1], d[2], d[3]);
+            }
+            if ((o->format == 8 || o->format == 9) && o->tlut_name >= 0 && o->tlut_name < 16) {
+                fprintf(stderr, " tlut_data=%p entries=%d is_be=%d",
+                        g_gx.tlut[o->tlut_name].data,
+                        g_gx.tlut[o->tlut_name].n_entries,
+                        g_gx.tlut[o->tlut_name].is_be);
+                if (g_gx.tlut[o->tlut_name].data) {
+                    u16* pal = (u16*)g_gx.tlut[o->tlut_name].data;
+                    fprintf(stderr, " pal=[%04x %04x %04x %04x]", pal[0], pal[1], pal[2], pal[3]);
+                }
+            }
+            fprintf(stderr, "\n");
+        }
+        if (tex_diag_count > 100) { tex_diag_count = 0; tex_diag_frame++; }
+    }
+#endif
     void* image_ptr = o->image_ptr;
     int width = (int)o->width;
     int height = (int)o->height;

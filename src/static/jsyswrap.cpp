@@ -456,6 +456,17 @@ extern u32 JW_GetAramAddress(int res_no) {
         address = JC_JKRAramArchive_getAramAddress_byName(forest_arc_aram2_p, (u32)'DATA', aram_resName[res_no]);
     }
 
+#ifdef TARGET_PC
+    {
+        static int aram_log = 0;
+        if (0 && aram_log < 30) { /* disabled */
+            aram_log++;
+            fprintf(stderr, "[ARAM_ADDR] res_no=%d name=%s addr=0x%x\n",
+                    res_no, (res_no >= 0 && res_no < RESOURCE_NUM) ? aram_resName[res_no] : "?", address);
+        }
+    }
+#endif
+
     return address;
 }
 
