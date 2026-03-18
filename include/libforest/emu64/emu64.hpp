@@ -628,7 +628,7 @@ class emu64 : public emu64_print {
     void texture_gen(int tile);
     void texture_matrix();
     void disp_matrix(MtxP mtx);
-    const char* segchk(u32 seg);
+    const char* segchk(uintptr_t seg);
     const char* combine_name(u32 param, u32 type);
     const char* combine_alpha(int param, int type);
     const char* combine_tev_color_name(u32 color_param);
@@ -744,6 +744,18 @@ private:
     /* 0x003C */ u32 cullDL_visible_obj_count;
     /* 0x0040 */ Gfx* gfx_p;
     /* 0x0048 */ Gfx gfx;
+#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+    /* On 64-bit, Gfx is 16 bytes (padded uintptr_t w1), but union view structs
+     * expect an 8-byte layout. This compact copy packs {w0, (u32)w1} so that
+     * existing casts to Gsettile*, Gsetcolor*, etc. read the correct bitfields. */
+    union {
+        struct { u32 w0; u32 w1; } words_compact;
+        /* Union views can be cast from &gfx_c */
+    } gfx_c;
+#define EMU64_GFX_COMPACT_PTR (&this->gfx_c)
+#else
+#define EMU64_GFX_COMPACT_PTR ((void*)&this->gfx)
+#endif
     /* 0x0050 */ u8 gfx_cmd;
     /* 0x0054 */ void* work_ptr;
     /* 0x0058 */ int end_dl;
@@ -824,7 +836,7 @@ private:
     /* 0x09E8 */ GXProjectionType projection_type;
     /* 0x09EC */ GC_Mtx perspective_mtx;
     /* 0x0A1C */ u32 _0A1C;
-    /* 0x0A20 */ u32 rdpHalf_1;
+    /* 0x0A20 */ uintptr_t rdpHalf_1;
     /* 0x0A24 */ EmuLight lights[NUM_LIGHTS];
     /* 0x0B64 */ u8 num_lights;
     /* 0x0B68 */ u32 lookatx_cnt;
