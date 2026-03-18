@@ -1477,10 +1477,10 @@ extern void mFM_InitFgCombiSaveData(GAME* game) {
 // Aus version added NULL check
 #if VERSION >= VER_GAFU01_00
         if (gamealloc_data_p != NULL) {
-            fg_data_p = (mFM_fg_data_c*)(ALIGN_NEXT((u32)gamealloc_data_p, 32));
+            fg_data_p = (mFM_fg_data_c*)(ALIGN_NEXT((uintptr_t)gamealloc_data_p, 32));
         }
 #else
-        fg_data_p = (mFM_fg_data_c*)(ALIGN_NEXT((u32)gamealloc_data_p, 32));
+        fg_data_p = (mFM_fg_data_c*)(ALIGN_NEXT((uintptr_t)gamealloc_data_p, 32));
 #endif
     } else {
         fg_data_p = (mFM_fg_data_c*)zelda_malloc_align(fg_datasize_align, 32);
@@ -1818,7 +1818,7 @@ extern void mFM_SetIslandNpcRoomData(GAME* game, int malloc_flag) {
         fgnpc_data_p = (mFM_fg_data_c*)zelda_malloc_align(fgnpc_size_align, 32);
     } else if (game != NULL) {
         gamealloc_data_p = gamealloc_malloc(gamealloc, fgnpc_size_align + 32);
-        fgnpc_data_p = (mFM_fg_data_c*)(ALIGN_NEXT((u32)gamealloc_data_p, 32));
+        fgnpc_data_p = (mFM_fg_data_c*)(ALIGN_NEXT((uintptr_t)gamealloc_data_p, 32));
     } else {
         fgnpc_data_p = (mFM_fg_data_c*)zelda_malloc_align(fgnpc_size_align, 32);
     }

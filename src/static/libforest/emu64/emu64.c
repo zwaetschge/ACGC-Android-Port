@@ -403,7 +403,7 @@ static u32 texture_cache_get_heap_size(texture_cache_t* cache) {
 
 static void* texture_cache_alloc(texture_cache_t* cache, u32 size) {
     cache->last_alloc_start = cache->buffer_current;
-    cache->last_alloc_end = (u8*)ALIGN_NEXT((u32)cache->buffer_current + size, 32);
+    cache->last_alloc_end = (u8*)ALIGN_NEXT((uintptr_t)cache->buffer_current + size, 32);
 
     if (cache->buffer_pos < cache->last_alloc_end - cache->buffer_start) {
         cache->buffer_pos = cache->last_alloc_end - cache->buffer_start;
@@ -5472,8 +5472,15 @@ void emu64::dl_G_MOVEWORD() {
             u32 segment = moveword->offset / 4;
             EMU64_WARNF("gsSPSegmentA(%d, 0x%08x),", segment, moveword->data);
 #ifdef TARGET_PC
-            /* On PC, store address directly (no GC physical address mapping) */
-            this->segments[segment] = moveword->data;
+            /* On PC, recover full 64-bit pointer from truncated u32 segment base.
+             * gSPSegment stores the address in w1 as u32, truncating on 64-bit.
+             * Use pc_gbi_recover_ptr to reconstruct the full address. */
+            {
+                uintptr_t recovered = (moveword->data != 0)
+                    ? pc_gbi_recover_ptr(moveword->data)
+                    : 0;
+                this->segments[segment] = recovered;
+            }
 #else
             this->segments[segment] = (0x80000000 + (moveword->data & 0x0FFFFFFF));
             if (segment >= EMU64_NUM_SEGMENTS ||

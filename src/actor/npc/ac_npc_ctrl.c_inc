@@ -754,7 +754,7 @@ static void aNPC_keep_actor_class(void) {
     int i;
 
     for (i = 0; i < 9; i++) {
-        *actor = (NPC_ACTOR*)ALIGN_NEXT((u32)aNPC_n_actor_cl_tbl[i].buf, 16);
+        *actor = (NPC_ACTOR*)ALIGN_NEXT((uintptr_t)aNPC_n_actor_cl_tbl[i].buf, 16);
         *used = FALSE;
 
         actor++;

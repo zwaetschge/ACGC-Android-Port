@@ -97,7 +97,7 @@ extern "C" {
 	Acmd *_a = (Acmd *)pkt;						\
 									\
 	_a->words.w0 = _SHIFTL(A_CMD_LOADCACHE, 24, 8) | _SHIFTL((len) >> 4, 16, 8) | _SHIFTL(src, 0, 16);    		\
-	_a->words.w1 = (u32)(dst);		\
+	_a->words.w1 = (u32)(uintptr_t)(dst);	\
 }
 
 #define	aLoadBuffer2(pkt, dst, src, len)						\
@@ -105,7 +105,7 @@ extern "C" {
 	Acmd *_a = (Acmd *)pkt;						\
 									\
 	_a->words.w0 = _SHIFTL(A_CMD_LOADBUFFER2, 24, 8) | _SHIFTL((len) >> 4, 16, 8) | _SHIFTL(src, 0, 16);    		\
-	_a->words.w1 = (u32)(dst);		\
+	_a->words.w1 = (u32)(uintptr_t)(dst);	\
 }
 
 #define	aSaveBuffer2(pkt, dst, src, len)						\
@@ -113,7 +113,7 @@ extern "C" {
 	Acmd *_a = (Acmd *)pkt;						\
 									\
 	_a->words.w0 = _SHIFTL(A_CMD_SAVEBUFFER2, 24, 8) | _SHIFTL((len) >> 4, 16, 8) | _SHIFTL(src, 0, 16);    		\
-	_a->words.w1 = (u32)(dst);		\
+	_a->words.w1 = (u32)(uintptr_t)(dst);	\
 }
 
 #define	aInterleave2(pkt, o, l, r, c)						\

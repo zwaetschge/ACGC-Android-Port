@@ -1045,7 +1045,7 @@ static int mPlib_Object_Exchange_keep_new(GAME_PLAY* play, s16 bank, u32 src, u3
     }
 
     if (obj_ex->bank_idx < (mSc_OBJECT_BANK_NUM - 1)) {
-        obj_ex->next_bank_ram_address = (char*)ALIGN_NEXT((u32)obj_ex->next_bank_ram_address + size, 32);
+        obj_ex->next_bank_ram_address = (char*)ALIGN_NEXT((uintptr_t)obj_ex->next_bank_ram_address + size, 32);
         obj_ex->bank_idx++;
     }
 

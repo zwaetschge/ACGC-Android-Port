@@ -21,10 +21,15 @@ struct ARQRequest {
 	u32 owner;            // _04
 	u32 type;             // _08
 	u32 priority;         // _0C
+#ifdef TARGET_PC
+	uintptr_t source;     // _10
+	uintptr_t dest;       // _18
+#else
 	u32 source;           // _10
 	u32 dest;             // _14
-	u32 length;           // _18
-	ARQCallback callback; // _1C
+#endif
+	u32 length;
+	ARQCallback callback;
 };
 
 ////////////////////////////////////////////

@@ -727,6 +727,8 @@ void* __Nas_SzCacheCheck_Inner(s32 tabletype, s32 audioCacheType, s32 id) {
         case WAVE_TABLE: {
             heap = &AG.wave_heap;
         } break;
+        default:
+            return NULL;
     }
     SZAuto* autoHeap = &heap->auto_heap;
     if (audioCacheType == 0) {
