@@ -40,9 +40,82 @@ int           g_pc_window_w = PC_SCREEN_WIDTH;
 int           g_pc_window_h = PC_SCREEN_HEIGHT;
 int           g_pc_widescreen_stretch = 0;
 
-/* exe image range -- used by seg2k0 to distinguish pointers from segment addresses */
-unsigned int pc_image_base = 0;
-unsigned int pc_image_end  = 0;
+/* exe image range — used by seg2k0 to distinguish pointers from segment addresses */
+uintptr_t pc_image_base = 0;
+uintptr_t pc_image_end  = 0;
+
+static jmp_buf* pc_active_jmpbuf = NULL;
+static volatile uintptr_t pc_last_crash_addr = 0;
+
+static volatile uintptr_t pc_last_crash_data_addr = 0;
+
+#ifdef _WIN32
+/* longjmp from VEH is technically UB, but works on x86 MinGW (no SEH to corrupt).
+ * GCC doesn't have __try/__except and checking every pointer in emu64 is impractical. */
+static LONG WINAPI pc_veh_handler(PEXCEPTION_POINTERS ep) {
+    DWORD code = ep->ExceptionRecord->ExceptionCode;
+    if (pc_active_jmpbuf != NULL &&
+        (code == EXCEPTION_ACCESS_VIOLATION ||
+         code == EXCEPTION_ILLEGAL_INSTRUCTION ||
+         code == EXCEPTION_INT_DIVIDE_BY_ZERO ||
+         code == EXCEPTION_PRIV_INSTRUCTION)) {
+        pc_last_crash_addr = (uintptr_t)ep->ExceptionRecord->ExceptionAddress;
+        if (code == EXCEPTION_ACCESS_VIOLATION)
+            pc_last_crash_data_addr = (uintptr_t)ep->ExceptionRecord->ExceptionInformation[1];
+        else
+            pc_last_crash_data_addr = 0;
+        jmp_buf* buf = pc_active_jmpbuf;
+        pc_active_jmpbuf = NULL;
+        longjmp(*buf, 1);
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+#else
+/* POSIX equivalent of VEH — longjmp from signal handler (POSIX-defined for program faults) */
+static void pc_signal_handler(int sig, siginfo_t* info, void* ucontext) {
+    (void)ucontext;
+    if (pc_active_jmpbuf != NULL) {
+        pc_last_crash_addr = (uintptr_t)info->si_addr;
+        pc_last_crash_data_addr = (sig == SIGSEGV) ?
+            (uintptr_t)info->si_addr : 0;
+        jmp_buf* buf = pc_active_jmpbuf;
+        pc_active_jmpbuf = NULL;
+        longjmp(*buf, 1);
+    }
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+#endif
+
+uintptr_t pc_crash_get_data_addr(void) {
+    return pc_last_crash_data_addr;
+}
+
+void pc_crash_protection_init(void) {
+    static int installed = 0;
+    if (!installed) {
+#ifdef _WIN32
+        AddVectoredExceptionHandler(1, pc_veh_handler);
+#else
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(sa));
+        sa.sa_sigaction = pc_signal_handler;
+        sa.sa_flags = SA_SIGINFO;
+        sigaction(SIGSEGV, &sa, NULL);
+        sigaction(SIGILL, &sa, NULL);
+        sigaction(SIGFPE, &sa, NULL);
+#endif
+        installed = 1;
+    }
+}
+
+void pc_crash_set_jmpbuf(jmp_buf* buf) {
+    pc_active_jmpbuf = buf;
+}
+
+uintptr_t pc_crash_get_addr(void) {
+    return pc_last_crash_addr;
+}
 
 void pc_platform_init(void) {
 #ifdef _WIN32
@@ -382,23 +455,48 @@ int main(int argc, char* argv[]) {
         HMODULE exe = GetModuleHandle(NULL);
         IMAGE_DOS_HEADER* dos = (IMAGE_DOS_HEADER*)exe;
         IMAGE_NT_HEADERS* nt = (IMAGE_NT_HEADERS*)((char*)exe + dos->e_lfanew);
-        pc_image_base = (unsigned int)(uintptr_t)exe;
+        pc_image_base = (uintptr_t)exe;
         pc_image_end = pc_image_base + nt->OptionalHeader.SizeOfImage;
+    }
+#elif defined(__APPLE__)
+    {
+        /* macOS: use dladdr — no ELF headers available */
+        Dl_info dl;
+        if (dladdr((void*)main, &dl) && dl.dli_fbase) {
+            pc_image_base = (uintptr_t)dl.dli_fbase;
+            /* Estimate image end — on 64-bit, seg2k0 uses threshold check
+             * instead of image range, so this is defense-in-depth only. */
+            pc_image_end = pc_image_base + 0x10000000;
+        }
     }
 #else
     {
         Dl_info dl;
         if (dladdr((void*)main, &dl) && dl.dli_fbase) {
-            pc_image_base = (unsigned int)(uintptr_t)dl.dli_fbase;
-            Elf32_Ehdr* ehdr = (Elf32_Ehdr*)dl.dli_fbase;
-            Elf32_Phdr* phdr = (Elf32_Phdr*)((char*)dl.dli_fbase + ehdr->e_phoff);
-            unsigned int max_end = 0;
+            pc_image_base = (uintptr_t)dl.dli_fbase;
+#if UINTPTR_MAX > 0xFFFFFFFFu
+            /* 64-bit ELF */
+            Elf64_Ehdr* ehdr = (Elf64_Ehdr*)dl.dli_fbase;
+            Elf64_Phdr* phdr = (Elf64_Phdr*)((char*)dl.dli_fbase + ehdr->e_phoff);
+            uintptr_t max_end = 0;
             for (int i = 0; i < ehdr->e_phnum; i++) {
                 if (phdr[i].p_type == PT_LOAD) {
-                    unsigned int seg_end = phdr[i].p_vaddr + phdr[i].p_memsz;
+                    uintptr_t seg_end = phdr[i].p_vaddr + phdr[i].p_memsz;
                     if (seg_end > max_end) max_end = seg_end;
                 }
             }
+#else
+            /* 32-bit ELF */
+            Elf32_Ehdr* ehdr = (Elf32_Ehdr*)dl.dli_fbase;
+            Elf32_Phdr* phdr = (Elf32_Phdr*)((char*)dl.dli_fbase + ehdr->e_phoff);
+            uintptr_t max_end = 0;
+            for (int i = 0; i < ehdr->e_phnum; i++) {
+                if (phdr[i].p_type == PT_LOAD) {
+                    uintptr_t seg_end = phdr[i].p_vaddr + phdr[i].p_memsz;
+                    if (seg_end > max_end) max_end = seg_end;
+                }
+            }
+#endif
             /* ET_EXEC: p_vaddr is absolute. ET_DYN (PIE): relative to load address. */
             if (ehdr->e_type == ET_DYN) {
                 pc_image_end = pc_image_base + max_end;

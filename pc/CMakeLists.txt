@@ -13,15 +13,12 @@ set(CMAKE_CXX_STANDARD 17)
 option(PC_CONSOLE "Show console window (disables -mwindows, useful for debugging)" OFF)
 
 # =============================================================================
-# 32-bit enforcement (required: JSystem casts pointers to u32)
+# Platform info
 # =============================================================================
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(FATAL_ERROR
-        "This project MUST be built as 32-bit (pointer-to-u32 casts in JSystem).\n"
-        "  Windows/MSYS2: Use the MINGW32 shell (not MINGW64)\n"
-        "  Linux: Use a 32-bit toolchain, e.g.:\n"
-        "    cmake .. -DCMAKE_C_COMPILER=i686-linux-gnu-gcc -DCMAKE_CXX_COMPILER=i686-linux-gnu-g++\n"
-        "    OR: cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-linux32.cmake")
+    message(STATUS "Building as 64-bit (pointer size = 8 bytes)")
+else()
+    message(STATUS "Building as 32-bit (pointer size = 4 bytes)")
 endif()
 
 # Allow mixed C/C++ linkage
@@ -41,6 +38,9 @@ add_compile_definitions(
     PC_ENHANCEMENTS   # Optional visual improvements (MSAA, etc). Remove to get pure PC port.
     KEYBOARD_TYPING   # Physical keyboard typing in text editor. Remove for platforms without keyboards.
 )
+if(APPLE)
+    add_compile_definitions(GL_SILENCE_DEPRECATION)
+endif()
 
 # Common compiler flags (applied to all sources). GCC is required:
 # the decomp depends on -fno-strict-aliasing/-fwrapv semantics and the
@@ -117,8 +117,9 @@ if(NOT SDL2_FOUND)
     if(NOT SDL2_FOUND)
         message(FATAL_ERROR
             "SDL2 not found!\n"
-            "  Linux:         sudo apt install libsdl2-dev:i386  (Debian/Ubuntu)\n"
-            "                 sudo dnf install SDL2-devel.i686   (Fedora)\n"
+            "  macOS:         brew install sdl2\n"
+            "  Linux:         sudo apt install libsdl2-dev  (Debian/Ubuntu)\n"
+            "                 sudo dnf install SDL2-devel   (Fedora)\n"
             "  Windows/MSYS2: pacman -S mingw-w64-i686-SDL2\n"
             "  Or download SDL2 development libraries to ${CMAKE_CURRENT_SOURCE_DIR}/lib/SDL2")
     endif()
@@ -378,7 +379,20 @@ add_compile_options($<$<COMPILE_LANGUAGE:C>:-Dnullptr=NULL>)
 # Per-source warning settings
 # =============================================================================
 # Decomp code: suppress all warnings (fires heavily on decompiled code)
-set(DECOMP_WARN_FLAGS "-w;-fpermissive")
+# Clang treats some decomp patterns as errors even with -w:
+# -Wno-return-type: missing return values in non-void functions
+# -Wno-initializer-overrides: GBI macros use designated initializers with overlapping fields
+set(DECOMP_WARN_FLAGS "-w;-fpermissive;-Wno-return-type;-Wno-error=return-type")
+if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    list(APPEND DECOMP_WARN_FLAGS "-Wno-c99-designator" "-Wno-initializer-overrides")
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        message(FATAL_ERROR
+            "64-bit builds require GCC (Clang rejects pointer-to-u32 truncation in GBI static initializers).\n"
+            "  macOS:  brew install gcc && cmake .. -DCMAKE_C_COMPILER=gcc-15 -DCMAKE_CXX_COMPILER=g++-15\n"
+            "          (adjust version number to match installed GCC, e.g. gcc-14/g++-14)\n"
+            "  Linux:  GCC is typically the default compiler.")
+    endif()
+endif()
 set_source_files_properties(${GAME_C_SOURCES} ${GAME_CXX_SOURCES}
     PROPERTIES COMPILE_OPTIONS "${DECOMP_WARN_FLAGS}"
 )
@@ -390,7 +404,10 @@ set(PC_CXX_SOURCES ${PC_SOURCES})
 list(FILTER PC_CXX_SOURCES INCLUDE REGEX "\\.cpp$")
 # Note: -Wno-comment/-Wno-unused-function/-Wno-builtin-declaration-mismatch suppress
 # warnings from decomp headers (types.h, gfxprint.h, OSRtc.h, libultra.h) that we can't modify.
-set(PC_WARN_SUPPRESS "-Wno-unused-parameter;-Wno-sign-compare;-Wno-comment;-Wno-unused-function;-Wno-builtin-declaration-mismatch")
+set(PC_WARN_SUPPRESS "-Wno-unused-parameter;-Wno-sign-compare;-Wno-comment;-Wno-unused-function")
+if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+    list(APPEND PC_WARN_SUPPRESS "-Wno-builtin-declaration-mismatch")
+endif()
 set_source_files_properties(${PC_C_SOURCES}
     PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;${PC_WARN_SUPPRESS}"
 )
@@ -426,6 +443,9 @@ endif()
 
 if(WIN32)
     target_link_libraries(ac_pc opengl32 winmm imm32 version setupapi)
+elseif(APPLE)
+    find_package(OpenGL REQUIRED)
+    target_link_libraries(ac_pc OpenGL::GL "-framework Cocoa" "-framework IOKit" pthread m)
 else()
     find_package(OpenGL REQUIRED)
     target_link_libraries(ac_pc OpenGL::GL dl pthread m)

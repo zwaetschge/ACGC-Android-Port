@@ -5,7 +5,11 @@
 /* On PC, we don't have MSL_C - use standard math */
 #include <math.h>
 #include <string.h>
+#ifdef __APPLE__
+#include <stdlib.h>  /* alloca() on macOS */
+#else
 #include <malloc.h>  /* for alloca() */
+#endif
 /* Metrowerks __alloca is a compiler built-in; map to standard alloca on PC */
 #define __alloca alloca
 /* Metrowerks __declspec(section "...") is not supported by GCC.
@@ -36,20 +40,25 @@
 
 typedef signed char s8;
 typedef signed short s16;
+#ifdef TARGET_PC
+#include <stdint.h>
+typedef int32_t  s32;
+typedef uint32_t u32;
+typedef int64_t  s64;
+typedef uint64_t u64;
+#include <stddef.h>
+#else
 typedef signed long s32;
-typedef signed long long s64;
-typedef unsigned char u8;
-typedef unsigned short u16;
 typedef unsigned long u32;
-#ifndef TARGET_PC
 #ifndef _SIZE_T_DEF
 #define _SIZE_T_DEF
 typedef unsigned long size_t;
 #endif
-#else
-#include <stddef.h>
-#endif
+typedef signed long long s64;
 typedef unsigned long long u64;
+#endif
+typedef unsigned char u8;
+typedef unsigned short u16;
 typedef unsigned int uint;
 
 typedef volatile u8 vu8;

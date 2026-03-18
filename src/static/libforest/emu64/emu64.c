@@ -3483,16 +3483,16 @@ void emu64::dl_G_DL(void) {
             }
 
             if (this->DL_stack_level < DL_MAX_STACK_LEVEL) {
-                this->DL_stack[this->DL_stack_level++] = (u32)(this->gfx_p + 1);
+                this->DL_stack[this->DL_stack_level++] = (uintptr_t)(this->gfx_p + 1);
             } else {
                 this->err_count++;
                 this->Printf0("*** DL stack overflow ***\n");
             }
 
-            this->gfx_p = (Gfx*)((int)this->work_ptr - sizeof(Gfx));
+            this->gfx_p = (Gfx*)((uintptr_t)this->work_ptr - sizeof(Gfx));
             break;
         case G_DL_NOPUSH:
-            this->gfx_p = (Gfx*)((u32)this->work_ptr - sizeof(Gfx));
+            this->gfx_p = (Gfx*)((uintptr_t)this->work_ptr - sizeof(Gfx));
             break;
         default:
             if (this->disable_polygons == false) {
@@ -3675,7 +3675,11 @@ void emu64::dl_G_SETTILE_DOLPHIN() {
     this->settilesize_dolphin_cmds[tile].isDolphin = 1;
 
     /* Set texture info for use in GC texture object initialization */
+#ifdef TARGET_PC
+    this->texture_info[tile].img_addr = (void*)this->resolved_imgaddr;
+#else
     this->texture_info[tile].img_addr = (void*)this->now_setimg.setimg2.imgaddr;
+#endif
     this->texture_info[tile].format = this->now_setimg.setimg2.fmt;
     this->texture_info[tile].size = this->now_setimg.setimg2.siz;
     this->texture_info[tile].width = EXPAND_WIDTH(this->now_setimg.setimg2.wd);
@@ -3700,7 +3704,11 @@ void emu64::dl_G_LOADTILE() {
         return;
 
     /* Determine tmem base address */
+#ifdef TARGET_PC
+    uintptr_t dram = this->resolved_imgaddr;
+#else
     u32 dram = this->now_setimg.setimg2.imgaddr;
+#endif
     dram += ((loadtile.tl / 4) * EXPAND_WIDTH(this->now_setimg.setimg2.wd) + (loadtile.sl / 4)
              << this->now_setimg.setimg2.siz) /
             2;
@@ -3728,7 +3736,11 @@ void emu64::dl_G_LOADTILE() {
 void emu64::dl_G_LOADBLOCK() {
     int tmem_idx;
     Gloadblock* loadblock = (Gloadblock*)this->gfx_p;
+#ifdef TARGET_PC
+    uintptr_t addr;
+#else
     u32 addr;
+#endif
     int i;
 
 #ifdef EMU64_DEBUG
@@ -3744,7 +3756,11 @@ void emu64::dl_G_LOADBLOCK() {
         return; /* Does not support LOAD commands */
 
     tmem_idx = this->settile_cmds[loadblock->tile].tmem / 4;
+#ifdef TARGET_PC
+    addr = this->resolved_imgaddr;
+#else
     addr = this->now_setimg.setimg2.imgaddr;
+#endif
     for (i = tmem_idx; i < tmem_idx + (loadblock->sh + 1) / 16; i++) {
         tmem_map[i].addr = (void*)addr;
         tmem_map[i].loadblock = *loadblock;
@@ -3891,10 +3907,14 @@ void emu64::dl_G_LOADTLUT() {
         if (this->disable_polygons == false) {
             u16 count = ((loadtlut->words.w1 >> 14) & 0x3FF) + 1;
             void* tlut;
+#ifdef TARGET_PC
+            uintptr_t addr = this->resolved_imgaddr;
+#else
             u32 addr = this->now_setimg.setimg2.imgaddr;
+#endif
             u32 tlut_name = (settile_p->tmem / 16) & 0xF;
 
-            if (addr == (u32)this->tlut_addresses[tlut_name]) {
+            if (addr == (uintptr_t)this->tlut_addresses[tlut_name]) {
                 /* Translation: ### Same TLUT address %08x %d */
                 EMU64_INFOF("### 同じTLUTアドレスです %08x %d\n", addr, tlut_name);
 #ifdef TARGET_PC
@@ -4294,7 +4314,14 @@ void emu64::dl_G_SETTIMG() {
 #endif
 
     this->now_setimg.setimg2 = *setimg2;
+#ifdef TARGET_PC
+    /* Store resolved address in a full-width field to avoid truncation
+     * through the 32-bit imgaddr bitfield on 64-bit platforms. */
+    this->resolved_imgaddr = this->seg2k0(setimg2->imgaddr);
+    this->now_setimg.setimg2.imgaddr = (u32)this->resolved_imgaddr;
+#else
     this->now_setimg.setimg2.imgaddr = (u32)this->seg2k0(setimg2->imgaddr);
+#endif
 }
 
 void emu64::dl_G_SETENVCOLOR() {

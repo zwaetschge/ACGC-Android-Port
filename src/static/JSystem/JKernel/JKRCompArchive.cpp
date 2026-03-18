@@ -8,7 +8,7 @@
 #include "JSystem/JSystem.h"
 #include "JSystem/JUtility/JUTAssertion.h"
 
-JKRCompArchive::JKRCompArchive(long entryNum, EMountDirection mountDirection) : JKRArchive(entryNum, MOUNT_COMP) {
+JKRCompArchive::JKRCompArchive(s32 entryNum, EMountDirection mountDirection) : JKRArchive(entryNum, MOUNT_COMP) {
     mMountDirection = mountDirection;
     if (!open(entryNum)) {
         return;
@@ -51,7 +51,7 @@ JKRCompArchive::~JKRCompArchive() {
     mIsMounted = false;
 }
 
-bool JKRCompArchive::open(long entryNum) {
+bool JKRCompArchive::open(s32 entryNum) {
     mArcInfoBlock = nullptr;
     _60 = 0;
     mAramPart = nullptr;
@@ -95,7 +95,11 @@ bool JKRCompArchive::open(long entryNum) {
                     JKRDvdToMainRam(entryNum, (u8*)mArcInfoBlock, EXPAND_SWITCH_DECOMPRESS,
                                     (u32)arcHeader->file_data_offset + mSizeOfMemPart, nullptr,
                                     JKRDvdRipper::ALLOC_DIR_TOP, 0x20, nullptr);
+#ifdef TARGET_PC
+                    _60 = (uintptr_t)mArcInfoBlock + arcHeader->file_data_offset;
+#else
                     _60 = (u32)mArcInfoBlock + arcHeader->file_data_offset;
+#endif
 
                     if (mSizeOfAramPart != 0) {
                         mAramPart = JKRAllocFromAram(mSizeOfAramPart, JKRAramHeap::Head);
@@ -108,9 +112,15 @@ bool JKRCompArchive::open(long entryNum) {
                                      arcHeader->header_length + arcHeader->file_data_offset + mSizeOfMemPart, 0);
                     }
 
+#ifdef TARGET_PC
+                    mDirectories = (SDIDirEntry*)((uintptr_t)mArcInfoBlock + mArcInfoBlock->node_offset);
+                    mFileEntries = (SDIFileEntry*)((uintptr_t)mArcInfoBlock + mArcInfoBlock->file_entry_offset);
+                    mStrTable = (const char*)((uintptr_t)mArcInfoBlock + mArcInfoBlock->string_table_offset);
+#else
                     mDirectories = (SDIDirEntry*)((u32)mArcInfoBlock + mArcInfoBlock->node_offset);
                     mFileEntries = (SDIFileEntry*)((u32)mArcInfoBlock + mArcInfoBlock->file_entry_offset);
                     mStrTable = (const char*)((u32)mArcInfoBlock + mArcInfoBlock->string_table_offset);
+#endif
                     _68 = arcHeader->header_length + arcHeader->file_data_offset;
                 }
                 break;
@@ -144,7 +154,11 @@ bool JKRCompArchive::open(long entryNum) {
                             // header
                             JKRHeap::copyMemory((u8*)mArcInfoBlock, arcHeader + 1,
                                                 (arcHeader->file_data_offset + mSizeOfMemPart));
+#ifdef TARGET_PC
+                            _60 = (uintptr_t)mArcInfoBlock + arcHeader->file_data_offset;
+#else
                             _60 = (u32)mArcInfoBlock + arcHeader->file_data_offset;
+#endif
                             if (mSizeOfAramPart != 0) {
                                 mAramPart = JKRAllocFromAram(mSizeOfAramPart, JKRAramHeap::Head);
                                 if (mAramPart == nullptr) {
@@ -159,9 +173,15 @@ bool JKRCompArchive::open(long entryNum) {
                         }
                     }
                 }
+#ifdef TARGET_PC
+                mDirectories = (SDIDirEntry*)((uintptr_t)mArcInfoBlock + mArcInfoBlock->node_offset);
+                mFileEntries = (SDIFileEntry*)((uintptr_t)mArcInfoBlock + mArcInfoBlock->file_entry_offset);
+                mStrTable = (const char*)((uintptr_t)mArcInfoBlock + mArcInfoBlock->string_table_offset);
+#else
                 mDirectories = (SDIDirEntry*)((u32)mArcInfoBlock + mArcInfoBlock->node_offset);
                 mFileEntries = (SDIFileEntry*)((u32)mArcInfoBlock + mArcInfoBlock->file_entry_offset);
                 mStrTable = (const char*)((u32)mArcInfoBlock + mArcInfoBlock->string_table_offset);
+#endif
                 _68 = arcHeader->header_length + arcHeader->file_data_offset;
                 break;
         }

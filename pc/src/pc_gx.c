@@ -77,12 +77,12 @@ static void pc_gx_update_aspect(void) {
 /* EFB capture: keep full-res GL textures from GXCopyTex instead of downsampling to 640x480 */
 #define MAX_EFB_CAPTURES 4
 static struct {
-    u32 dest_ptr;
+    uintptr_t dest_ptr;
     GLuint gl_tex;
 } s_efb_captures[MAX_EFB_CAPTURES];
 static int s_efb_capture_count = 0;
 
-void pc_gx_efb_capture_store(u32 dest_ptr, GLuint gl_tex) {
+void pc_gx_efb_capture_store(uintptr_t dest_ptr, GLuint gl_tex) {
     for (int i = 0; i < s_efb_capture_count; i++) {
         if (s_efb_captures[i].dest_ptr == dest_ptr) {
             if (s_efb_captures[i].gl_tex)
@@ -103,7 +103,7 @@ void pc_gx_efb_capture_store(u32 dest_ptr, GLuint gl_tex) {
     s_efb_capture_count++;
 }
 
-GLuint pc_gx_efb_capture_find(u32 data_ptr) {
+GLuint pc_gx_efb_capture_find(uintptr_t data_ptr) {
     for (int i = 0; i < s_efb_capture_count; i++) {
         if (s_efb_captures[i].dest_ptr == data_ptr)
             return s_efb_captures[i].gl_tex;
@@ -2106,7 +2106,7 @@ static void pc_gx_copy_tex_execute_impl(void* dest, GXBool clear) {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        pc_gx_efb_capture_store((u32)(uintptr_t)dest, efb_tex);
+        pc_gx_efb_capture_store((uintptr_t)dest, efb_tex);
         glBindTexture(GL_TEXTURE_2D, 0);
         pc_profiler_add_count_texture_bind();
         pc_gx_texture_bind_cache_invalidate();

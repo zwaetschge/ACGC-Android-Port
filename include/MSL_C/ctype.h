@@ -2,7 +2,7 @@
 #define _CTYPE_H
 
 #ifdef TARGET_PC
-#include <ctype.h> // Conflicts can happen otherwise in certain compiler versions
+#include_next <ctype.h>
 #else
 
 #include "MSL_C/locale.h"
@@ -47,5 +47,6 @@ inline int _toupper(int c) {
 #ifdef __cplusplus
 }
 #endif
+
 #endif /* !TARGET_PC */
 #endif /* _CTYPE_H */

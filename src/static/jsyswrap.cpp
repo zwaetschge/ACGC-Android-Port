@@ -490,7 +490,12 @@ extern void JW_Init() {
     void* arena_hi = OSGetArenaHi();
     void* arena_lo = OSGetArenaLo();
 
+#ifdef TARGET_PC
+    /* Overhead is larger on 64-bit due to wider pointers in JKR heap structs */
+    SystemHeapSize = (uintptr_t)arena_hi - (uintptr_t)arena_lo - 0x200;
+#else
     SystemHeapSize = (u32)arena_hi - (u32)arena_lo - 0xD0;
+#endif
     JC_JFWSystem_setMaxStdHeap(1);
     JC_JFWSystem_setSysHeapSize(SystemHeapSize);
     JC_JFWSystem_setFifoBufSize(0x10001);
