@@ -15,6 +15,7 @@
 
 #ifdef TARGET_PC
 #include "pc_platform.h"
+extern "C" void pc_gx_flush_if_begin_complete(void);
 
 static jmp_buf pc_dl_crash_jmpbuf;
 
@@ -3210,6 +3211,16 @@ void emu64::dirty_check(int tile, int n_tiles, int do_texture_matrix) {
     EMU64_TIMED_SEGMENT_BEGIN();
     EMU64_ASSERTLINE_DEBUG(this, 4826);
 
+#ifdef TARGET_PC
+    /* Flush any pending GX batch BEFORE changing state.
+     * Without this, a pending batch (from the previous draw) gets flushed
+     * mid-dirty_check when the first GX state call triggers
+     * pc_gx_flush_if_begin_complete(). At that point, texture/combine/etc.
+     * may already be partially updated for the NEW draw, causing the previous
+     * batch to render with wrong textures. */
+    pc_gx_flush_if_begin_complete();
+#endif
+
     if (IS_DIRTY(EMU64_DIRTY_FLAG_PRIM_COLOR)) {
         EMU64_TIMED_SEGMENT_BEGIN();
         CLEAR_DIRTY(EMU64_DIRTY_FLAG_PRIM_COLOR);
@@ -3369,7 +3380,10 @@ void emu64::dirty_check(int tile, int n_tiles, int do_texture_matrix) {
                 GXSetChanCtrl(GX_ALPHA0, GX_FALSE, GX_SRC_REG, GX_SRC_VTX, GX_LIGHT_NULL, GX_DF_NONE, GX_AF_NONE);
             }
         } else {
-            GXSetChanCtrl(GX_COLOR0A0, GX_FALSE, GX_SRC_REG, GX_SRC_VTX, GX_LIGHT_NULL, GX_DF_NONE, GX_AF_NONE);
+            /* When G_SHADE is off, N64 ignores vertex colors (shade defaults to white).
+             * Use GX_SRC_REG so the channel doesn't pull black vertex colors. */
+            int mat_src = (this->geometry_mode & G_SHADE) ? GX_SRC_VTX : GX_SRC_REG;
+            GXSetChanCtrl(GX_COLOR0A0, GX_FALSE, GX_SRC_REG, mat_src, GX_LIGHT_NULL, GX_DF_NONE, GX_AF_NONE);
         }
 
         EMU64_TIMED_SEGMENT_END(dirty_light_time);
@@ -4956,6 +4970,7 @@ void emu64::dl_G_TRIN() {
     EMU64_TIMED_SEGMENT_BEGIN();
 
     this->dirty_check(this->texture_gfx.tile, this->texture_gfx.level, TRUE);
+
     this->setup_1tri_2tri_1quad(first_vtx);
     n_faces = ((first_cmd->words.w0 >> 17) & 0x7F) + 1;
     int n_verts = n_faces * 3;

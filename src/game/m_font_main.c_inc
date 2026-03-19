@@ -519,7 +519,14 @@ static f32 mFont_SetLineStrings_AndSpace_new(
     gfx = NOW_FONT_DISP;
   }
 
-  flag = mFont_SENTENCE_FLAG_USE_POLY;
+  flag = 0;
+  /* On PC, the poly glyph path has rendering issues on POLY_OPA_DISP.
+   * Use poly mode only for FONT_DISP callers (NPC names, choices) where
+   * the window's modelview matrix is needed for correct positioning.
+   * POLY_OPA callers (editor keyboard) use rect mode with absolute coords. */
+  if (mode == mFont_MODE_FONT) {
+    flag |= mFont_SENTENCE_FLAG_USE_POLY;
+  }
   if (flag_revert) {
     flag |= mFont_SENTENCE_FLAG_REVERT;
   }
