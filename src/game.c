@@ -154,7 +154,23 @@ extern void game_main(GAME* this) {
     GRAPH_SET_DOING_POINT(graph, GAME_TIME_FINISHED);
     PC_DIAG(5, "game_main: mTM_time done, calling exec=%p\n", (void*)this->exec);
     GRAPH_SET_DOING_POINT(graph, GAME_EXEC);
+#ifdef TARGET_PC
+    {
+        static jmp_buf game_exec_jmpbuf;
+        pc_crash_set_jmpbuf(&game_exec_jmpbuf);
+        if (setjmp(game_exec_jmpbuf) != 0) {
+            /* Recovered from crash in game exec */
+            printf("[PC] CRASH in game exec! doing_point=%d specific=0x%02X addr=%p data=%p\n",
+                this->doing_point, this->doing_point_specific,
+                (void*)pc_crash_get_addr(), (void*)pc_crash_get_data_addr());
+        } else {
+            this->exec(this);
+        }
+        pc_crash_set_jmpbuf(NULL);
+    }
+#else
     this->exec(this);
+#endif
     GRAPH_SET_DOING_POINT(graph, GAME_EXEC_FINISHED);
     GRAPH_SET_DOING_POINT(graph, GAME_BGM);
 #ifdef TARGET_PC
