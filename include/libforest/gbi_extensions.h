@@ -11,26 +11,11 @@ extern "C" {
 
 #ifndef _GBI_STATIC_PTR
 #ifdef TARGET_PC
-#ifndef _GBI_STATIC_ASSERT
-#ifdef __cplusplus
-#define _GBI_STATIC_ASSERT(cond, msg) static_assert(cond, msg)
+#if UINTPTR_MAX > 0xFFFFFFFFu
+#define _GBI_STATIC_PTR(s) (uintptr_t)(s)
 #else
-#define _GBI_STATIC_ASSERT(cond, msg) _Static_assert(cond, msg)
-#endif
-#endif
-
-#ifndef _GBI_RUNTIME_PTR_HELPERS
-#define _GBI_RUNTIME_PTR_HELPERS
-_GBI_STATIC_ASSERT(sizeof(void*) == sizeof(unsigned int), "GBI pointer packing requires 32-bit pointers");
-
-unsigned int pc_gbi_pack_runtime_ptr(uintptr_t addr, int is_ptr, const char* expr, const char* file, int line);
-uintptr_t pc_gbi_unpack_runtime_ptr(unsigned int packed);
-#endif
-
 #define _GBI_STATIC_PTR(s) (unsigned int)(uintptr_t)(s)
-#define _GBI_IS_RUNTIME_PTR_EXPR(s) (__builtin_classify_type(s) == 5 || __builtin_classify_type(s) == 14)
-#define _GBI_RUNTIME_PTR(s) \
-    pc_gbi_pack_runtime_ptr((uintptr_t)(s), _GBI_IS_RUNTIME_PTR_EXPR(s), #s, __FILE__, __LINE__)
+#endif
 #else
 #define _GBI_STATIC_PTR(s) (unsigned int)(s)
 #define _GBI_RUNTIME_PTR(s) (unsigned int)(s)

@@ -357,15 +357,16 @@ static void __WaveTouch_PC(wtstr* wavetouch_str, uintptr_t ram_addr, WaveMedia* 
     }
 
     /* Check if already relocated (raw BE check before swap).
-     * In BE layout: bit25 = is_relocated. The bitfield may still be in BE byte order. */
+     * Bitfield layout: [31]bit31 | [30:28]codec | [27:26]medium | [25]bit26 | [24]is_relocated | [23:0]size
+     * is_relocated is bit 24, NOT bit 25 (bit 25 is "bit26" flag). */
     gc_bitfield = gc_wt->bitfield;
     {
         u32 be_val = BSWAP32(gc_bitfield);
-        gc_is_relocated = (be_val >> 25) & 1;
+        gc_is_relocated = (be_val >> 24) & 1;
     }
     /* Also check if it was already swapped and relocated (LE check) */
     if (!gc_is_relocated) {
-        gc_is_relocated = (gc_bitfield >> 25) & 1;
+        gc_is_relocated = (gc_bitfield >> 24) & 1;
     }
 
     if (gc_is_relocated) {

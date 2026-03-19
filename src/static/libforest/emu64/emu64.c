@@ -3125,6 +3125,13 @@ void emu64::draw_rectangle(Gtexrect2* texrect) {
     s1 = (center + (s_end - this->settilesize_dolphin_cmds[tile].sl / 16.0f)) / (int)this->texture_info[tile].width;
     t1 = (center + (t_end - this->settilesize_dolphin_cmds[tile].tl / 16.0f)) / (int)this->texture_info[tile].height;
 
+    /* Save current projection — draw_rectangle overwrites it with its own
+       ortho, but subsequent polygon rendering (e.g. mFont text on the FONT
+       display list) needs the original projection to be restored. */
+    Mtx44 saved_proj;
+    int saved_proj_type = this->projection_type;
+    bcopy(this->projection_mtx, saved_proj, sizeof(Mtx44));
+
     GXSetProjection(this->ortho_mtx, GX_ORTHOGRAPHIC);
     GXSetCurrentMtx(GX_PNMTX0);
 
@@ -3179,6 +3186,12 @@ void emu64::draw_rectangle(Gtexrect2* texrect) {
         GXTexCoord2f32(s0, t1);
         GXEnd();
     }
+
+    /* Restore projection so subsequent polygon rendering uses the correct matrix */
+    bcopy(saved_proj, this->projection_mtx, sizeof(Mtx44));
+    this->projection_type = saved_proj_type;
+    GXSetProjection(this->projection_mtx, (GXProjectionType)this->projection_type);
+    this->dirty_flags[EMU64_DIRTY_FLAG_PROJECTION_MTX] = true;
 
     this->rdp_pipe_sync_needed = true;
 }
@@ -4072,16 +4085,16 @@ void emu64::dl_G_SETCOMBINE() {
 #endif
 
     /* N64 Combiner -> GC TEV */
-    if (this->gfx_cmd != G_SETCOMBINE_NOTEV && aflags[AFLAGS_SKIP_COMBINE_TEV] == 0) {
 #ifdef TARGET_PC
-        /* On PC, convert the writable combine_gfx copy instead of the
-           read-only display list data. combine_tev() will then see
-           G_SETCOMBINE_TEV and use the proper TEV color/alpha inputs. */
-        this->replace_combine_to_tev(&this->combine_gfx);
+    /* On PC, skip replace_combine_to_tev — the Gsetcombine_tev bitfield
+       layout is endian-dependent and produces garbled TEV inputs on LE.
+       Instead, combine() will use combine_auto/combine_manual which
+       translate N64 combine modes to GX TEV calls directly. */
 #else
+    if (this->gfx_cmd != G_SETCOMBINE_NOTEV && aflags[AFLAGS_SKIP_COMBINE_TEV] == 0) {
         this->replace_combine_to_tev(this->gfx_p);
-#endif
     }
+#endif
 }
 
 void emu64::dl_G_SETCOMBINE_TEV() {
@@ -4641,7 +4654,21 @@ void emu64::dl_G_MTX() {
         if ((mtx_gfx->type & G_MTX_PROJECTION) != G_MTX_MODELVIEW) { /* Projection */
             N64Mtx_to_DOLMtx((Mtx*)mtx, mtx44);
             if ((mtx_gfx->type & G_MTX_LOAD) != G_MTX_MUL) {
-                if ((u16)(*mtx)[1][3] == 0) { /* If the last entry is 0, this should be a perspective projection.
+                {
+#ifdef TARGET_PC
+                /* Detect perspective vs orthographic from the converted float matrix.
+                   For perspective: mtx44[2][3] is large (near*far term, typically hundreds).
+                   For orthographic: mtx44[2][3] is 0 or very small (-(f+n)/(f-n), often 0
+                   for symmetric near/far).
+                   The original (*mtx)[1][3] check fails on 64-bit because Mtx_t uses
+                   `long` (8 bytes) so array indexing reads wrong offsets.
+                   Also, N64Mtx_to_DOLMtx only converts 3 rows, so mtx44[3][3] is
+                   uninitialized and can't be used. */
+                int is_perspective = (fabsf(mtx44[2][3]) > 1.0f);
+#else
+                int is_perspective = ((u16)(*mtx)[1][3] == 0);
+#endif
+                if (is_perspective) { /* If the last entry is 0, this should be a perspective projection.
                                                  Otherwise, it's likely an orthographic projection. */
                     this->near = mtx44[2][3] * ((mtx44[2][2] + 1.0f) / (mtx44[2][2] - 1.0f) - 1.0f) / 2.0f;
                     this->far = this->near * ((mtx44[2][2] - 1.0f) / (mtx44[2][2] + 1.0f) + 1.0f);
@@ -4675,6 +4702,7 @@ void emu64::dl_G_MTX() {
                 MTXIdentity(this->position_mtx);
                 this->dirty_flags[EMU64_DIRTY_FLAG_PROJECTION_MTX] = true;
                 this->dirty_flags[EMU64_DIRTY_FLAG_FOG] = true;
+                } /* end perspective/ortho block */
             } else {
                 bcopy(mtx44, &this->position_mtx, sizeof(GC_Mtx)); /* Last row of Mtx44 is ignored */
             }
