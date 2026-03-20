@@ -73,25 +73,23 @@ static void eOMN_dw(eEC_Effect_c* effect, GAME* game) {
 
     gfx = two_tex_scroll_dolphin(game->graph, 0, 0, 0, 16, 16, 1, 0, scroll_t, 64, 32);
 
-    {
-        f32 t;
-        switch (effect->state) {
-            case eEC_STATE_NORMAL:
-                t = 22.0f - effect->lifetime;
-                scale_m = eEL_CalcAdjust_F(t, 0.0f, 10.0f, 0.0f, 0.01f);
-                scale_y = eEL_CalcAdjust_F(t, 10.0f, 21.0f, 0.0f, 0.0135f);
-                alpha = 255;
-                alpha2 = 100;
-                sAdo_OngenPos((u32)effect, 0x59, &effect->position);
-                break;
+    switch (effect->state) {
+        case eEC_STATE_NORMAL:
+            timer = 22 - effect->timer;
+            scale_m = eEC_CLIP->calc_adjust_proc(timer, 0, 10, 0.0f, 0.01f);
+            scale_y = eEC_CLIP->calc_adjust_proc(timer, 10, 21, 0.0f, 0.0135f);
+            alpha = 255;
+            alpha2 = 100;
+            sAdo_OngenPos((uintptr_t)effect, 0x59, &effect->position);
+            break;
 
-            case eEC_STATE_CONTINUOUS:
-                sAdo_OngenPos((u32)effect, 0x59, &effect->position);
-                scale_m = 0.01f;
-                alpha = 255;
-                scale_y = 0.0135f;
-                alpha2 = 100;
-                break;
+        case eEC_STATE_CONTINUOUS:
+            sAdo_OngenPos((uintptr_t)effect, 0x59, &effect->position);
+            scale_m = 0.01f;
+            alpha = 255;
+            scale_y = 0.0135f;
+            alpha2 = 100;
+            break;
 
             default:
                 t = 10.0f - effect->lifetime;

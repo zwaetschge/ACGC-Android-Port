@@ -14,7 +14,7 @@ static void fST02_mv(FTR_ACTOR* ftr_actor, ACTOR* my_room_actor, GAME* game, u8*
 
     if (ftr_actor->switch_bit) {
         if (aFTR_CAN_PLAY_SE(ftr_actor)) {
-            sAdo_OngenPos((u32)ftr_actor, 4, &ftr_actor->position);
+            sAdo_OngenPos((uintptr_t)ftr_actor, 4, &ftr_actor->position);
         }
     }
 
@@ -99,7 +99,7 @@ static void fST02_mv(FTR_ACTOR* ftr_actor, ACTOR* my_room_actor, GAME* game, u8*
 
     if (ftr_actor->switch_bit) {
         if (aFTR_CAN_PLAY_SE(ftr_actor)) {
-            sAdo_OngenPos((u32)ftr_actor, 4, &ftr_actor->position);
+            sAdo_OngenPos((uintptr_t)ftr_actor, 4, &ftr_actor->position);
         }
 
 #ifdef TARGET_PC

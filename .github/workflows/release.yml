@@ -1,0 +1,177 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag (e.g. v0.1.0)'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  # =========================================================================
+  # macOS (ARM64 + x86_64 universal)
+  # =========================================================================
+  build-macos:
+    runs-on: macos-14  # Apple Silicon runner
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install gcc@15 sdl2
+
+      - name: Configure (ARM64)
+        run: |
+          mkdir -p pc/build-arm64
+          cd pc/build-arm64
+          cmake .. \
+            -DCMAKE_C_COMPILER=gcc-15 \
+            -DCMAKE_CXX_COMPILER=g++-15 \
+            -DCMAKE_BUILD_TYPE=""
+
+      - name: Build (ARM64)
+        run: cmake --build pc/build-arm64 -j$(sysctl -n hw.ncpu)
+
+      - name: Package macOS
+        run: |
+          cd pc/build-arm64
+          mkdir -p AnimalCrossing-macOS
+          cp bin/AnimalCrossing AnimalCrossing-macOS/
+          cp -r bin/shaders AnimalCrossing-macOS/
+          mkdir -p AnimalCrossing-macOS/rom
+          mkdir -p AnimalCrossing-macOS/save
+          mkdir -p AnimalCrossing-macOS/texture_pack
+          # Create a launch helper
+          cat > AnimalCrossing-macOS/run.command << 'SCRIPT'
+          #!/bin/bash
+          cd "$(dirname "$0")"
+          ./AnimalCrossing "$@"
+          SCRIPT
+          chmod +x AnimalCrossing-macOS/run.command
+          chmod +x AnimalCrossing-macOS/AnimalCrossing
+          tar czf AnimalCrossing-macOS-arm64.tar.gz AnimalCrossing-macOS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: pc/build-arm64/AnimalCrossing-macOS-arm64.tar.gz
+
+  # =========================================================================
+  # Windows (32-bit MinGW via MSYS2)
+  # =========================================================================
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW32
+          install: >-
+            mingw-w64-i686-gcc
+            mingw-w64-i686-cmake
+            mingw-w64-i686-SDL2
+            make
+
+      - name: Configure
+        run: |
+          mkdir -p pc/build32
+          cd pc/build32
+          cmake .. -G "MinGW Makefiles"
+
+      - name: Build
+        run: cmake --build pc/build32 -j$(nproc)
+
+      - name: Package Windows
+        run: |
+          cd pc/build32
+          mkdir -p AnimalCrossing-Windows
+          cp bin/AnimalCrossing.exe AnimalCrossing-Windows/
+          cp bin/shaders/* AnimalCrossing-Windows/ 2>/dev/null || true
+          mkdir -p AnimalCrossing-Windows/shaders
+          cp -r bin/shaders/* AnimalCrossing-Windows/shaders/ 2>/dev/null || true
+          mkdir -p AnimalCrossing-Windows/rom
+          mkdir -p AnimalCrossing-Windows/save
+          mkdir -p AnimalCrossing-Windows/texture_pack
+          # Copy SDL2.dll if present
+          cp /mingw32/bin/SDL2.dll AnimalCrossing-Windows/ 2>/dev/null || true
+
+      - name: Create zip
+        shell: pwsh
+        run: Compress-Archive -Path pc/build32/AnimalCrossing-Windows -DestinationPath pc/build32/AnimalCrossing-Windows-x86.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86
+          path: pc/build32/AnimalCrossing-Windows-x86.zip
+
+  # =========================================================================
+  # Linux (x86_64)
+  # =========================================================================
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc g++ cmake libsdl2-dev libgl-dev
+
+      - name: Configure
+        run: |
+          mkdir -p pc/build
+          cd pc/build
+          cmake .. -DCMAKE_BUILD_TYPE=""
+
+      - name: Build
+        run: cmake --build pc/build -j$(nproc)
+
+      - name: Package Linux
+        run: |
+          cd pc/build
+          mkdir -p AnimalCrossing-Linux
+          cp bin/AnimalCrossing AnimalCrossing-Linux/
+          cp -r bin/shaders AnimalCrossing-Linux/
+          mkdir -p AnimalCrossing-Linux/rom
+          mkdir -p AnimalCrossing-Linux/save
+          mkdir -p AnimalCrossing-Linux/texture_pack
+          chmod +x AnimalCrossing-Linux/AnimalCrossing
+          tar czf AnimalCrossing-Linux-x86_64.tar.gz AnimalCrossing-Linux
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: pc/build/AnimalCrossing-Linux-x86_64.tar.gz
+
+  # =========================================================================
+  # Create GitHub Release (only on tag push)
+  # =========================================================================
+  release:
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.tag_name != ''
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: Animal Crossing PC Port ${{ github.event.inputs.tag_name || github.ref_name }}
+          draft: true
+          generate_release_notes: true
+          files: |
+            AnimalCrossing-macOS-arm64.tar.gz
+            AnimalCrossing-Windows-x86.zip
+            AnimalCrossing-Linux-x86_64.tar.gz

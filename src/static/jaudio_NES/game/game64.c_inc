@@ -3003,7 +3003,7 @@ u8 Na_MessageSpeedGet() {
     return sou_message_speed;
 }
 
-void Na_OngenPos(u32 id, u8 index, u16 angle, f32 distance) {
+void Na_OngenPos(uintptr_t id, u8 index, u16 angle, f32 distance) {
     u8 pan = 0;
     u8 i = 0;
     u8 j = 0;
@@ -3564,7 +3564,7 @@ extern void Na_KishaStatusTrg(u8 a) {
     }
 }
 
-extern void Na_KishaStatusLevel(f32 speed, u32 ongenNum1, u16 angle1, f32 distance1, u32 ongenNum2, u16 angle2,
+extern void Na_KishaStatusLevel(f32 speed, uintptr_t ongenNum1, u16 angle1, f32 distance1, uintptr_t ongenNum2, u16 angle2,
                                 f32 distance2) {
     f32 f30 = 0.f;
     f32 f29 = 0.f;

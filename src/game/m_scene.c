@@ -1,8 +1,5 @@
 #include "m_scene.h"
 
-#ifdef TARGET_PC
-#include <stdio.h>
-#endif
 #include "m_player_lib.h"
 #include "libultra/libultra.h"
 #include "jsyswrap.h"
@@ -522,11 +519,6 @@ static void Scene_Proc_ArrangeFurniture_ct(GAME_PLAY* play, Scene_Word_u* scene_
 extern int goto_other_scene(GAME_PLAY* play, Door_data_c* door_data, int update_player_mode) {
     PLAYER_ACTOR* player = get_player_actor_withoutCheck(play);
     int res = 0; // failed
-
-#ifdef TARGET_PC
-    fprintf(stderr, "[SCENE] goto_other_scene: next=%d wipe_type=%d update=%d player=%p wipe_mode=%d\n",
-            door_data->next_scene_id, door_data->wipe_type, update_player_mode, (void*)player, play->fb_wipe_mode);
-#endif
 
     if (player != NULL) {
         if (play->fb_wipe_mode == WIPE_MODE_NONE) {
