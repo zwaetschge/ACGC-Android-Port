@@ -11,6 +11,9 @@
 #include "sys_matrix.h"
 #include "m_rcp.h"
 #include "libforest/gbi_extensions.h"
+#ifdef TARGET_PC
+#include <stdio.h>
+#endif
 
 enum {
     aMHS_ACTION_WAIT,

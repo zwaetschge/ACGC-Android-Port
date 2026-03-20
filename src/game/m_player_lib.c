@@ -2623,7 +2623,7 @@ extern int mPlib_check_label_player_demo_wait(GAME* game, void* label) {
     if (mPlib_get_player_actor_main_index(game) == mPlayer_INDEX_DEMO_WAIT) {
         mPlayer_main_demo_wait_c* demo_wait_p = &GET_PLAYER_ACTOR_GAME(game)->main_data.demo_wait;
 
-        if (demo_wait_p->label == (u32)label) {
+        if (demo_wait_p->label == (uintptr_t)label) {
             return TRUE;
         }
     }

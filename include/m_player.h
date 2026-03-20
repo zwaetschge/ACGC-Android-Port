@@ -888,7 +888,7 @@ typedef struct player_request_door_s {
     s16 angle_y;
     xyz_t player_pos;
     int type;
-    u32 label;
+    uintptr_t label;
 } mPlayer_request_door_c;
 
 typedef struct player_request_outdoor_s {
@@ -898,7 +898,7 @@ typedef struct player_request_outdoor_s {
 
 typedef struct player_request_demo_wait_s {
     int umbrella_flag;
-    u32 label;
+    uintptr_t label;
 } mPlayer_request_demo_wait_c;
 
 typedef struct player_request_demo_walk_s {
@@ -1515,7 +1515,7 @@ typedef struct player_main_wait_s {
 } mPlayer_main_wait_c;
 
 typedef struct player_main_door_s {
-    u32 label;
+    uintptr_t label;
 } mPlayer_main_door_c;
 
 typedef struct player_main_outdoor_s {
@@ -1756,7 +1756,7 @@ typedef struct player_main_putin_item_s {
 
 typedef struct player_main_demo_wait_s {
     int effect_id;
-    u32 label;
+    uintptr_t label;
 } mPlayer_main_demo_wait_c;
 
 typedef struct player_main_release_creature_s {

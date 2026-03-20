@@ -215,6 +215,10 @@ static void Game_play_fbdemo_fade_out_game_end_move_end(GAME_PLAY* play) {
 }
 
 static void Game_play_change_scene_move_end(GAME_PLAY* play) {
+#ifdef TARGET_PC
+    fprintf(stderr, "[SCENE] Game_play_change_scene_move_end: current=%d next=%d\n",
+            Save_Get(scene_no), play->next_scene_no);
+#endif
     game_goto_next_game_play(&play->game);
     Common_Set(last_scene_no, Save_Get(scene_no));
     Save_Set(scene_no, play->next_scene_no);
@@ -224,6 +228,20 @@ static void Game_play_fbdemo_wipe_move(GAME_PLAY* play) {
     fbdemo_wipe* wipe = &play->fbdemo_wipe;
     s16 wipet = FALSE;
     int isDone = TRUE;
+
+#ifdef TARGET_PC
+    {
+        /* Only trace FADE_TYPE_DEMO (house/scene transitions), limit 30 prints */
+        static int wipe_demo_count = 0;
+        if (play->fb_fade_type == FADE_TYPE_DEMO && wipe_demo_count < 30) {
+            int finished = wipe->wipe_procs.isfinished_proc(&wipe->wipe_data);
+            fprintf(stderr, "[WIPE] DEMO: finished=%d se_timeout=%d title_timer=%d bgm=%d sefade=%d next_scene=%d\n",
+                    finished, S_se_endcheck_timeout, S_back_title_timer,
+                    sAdo_BgmFadeoutCheck(), sAdo_SeFadeoutCheck(), play->next_scene_no);
+            wipe_demo_count++;
+        }
+    }
+#endif
 
     if (wipe->wipe_procs.isfinished_proc(&wipe->wipe_data) != 0) {
         if ((play->fb_fade_type != FADE_TYPE_IN) && (play->fb_fade_type != FADE_TYPE_EVENT)) {
@@ -413,6 +431,11 @@ extern void play_init(GAME* game) {
     uintptr_t alloc;
     uintptr_t aligned;
     uintptr_t size;
+
+#ifdef TARGET_PC
+    fprintf(stderr, "[SCENE] play_init: scene_no=%d transition.wipe_type=%d\n",
+            Save_Get(scene_no), Common_Get(transition.wipe_type));
+#endif
 
     game_resize_hyral(game, -Game_play_HYRAL_SIZE); // reserve bytes from gamealloc
     Common_Set(rhythym_updated, 0);
