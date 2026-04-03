@@ -464,13 +464,17 @@ typedef struct delay_ {
     /* 0x2A0 */ adpcmloop adpcm_loop;
 } delay;
 
-/* sizeof(macro) == 0x1C */
+/* sizeof(macro) == 0x1C (32-bit). On 64-bit, pointers are 8 bytes so the struct
+ * is larger. The stack depth is increased from 4 to 8 to prevent the 5th CALL/LOOP
+ * from overflowing into the depth and value fields on 64-bit. On 32-bit, depth=4
+ * overflows only wrote into remaining_loop_iters (4 bytes), leaving depth intact;
+ * on 64-bit that same overflow also smashed depth (byte 4 of the 8-byte pointer). */
 typedef struct macro_ {
     /* 0x00 */ u8* pc;
-    /* 0x04 */ u8* stack[4];
-    /* 0x14 */ u8 remaining_loop_iters[4];
-    /* 0x18 */ u8 depth;
-    /* 0x19 */ s8 value;
+    /* 0x04 */ u8* stack[8];
+    /* 0x24 */ u8 remaining_loop_iters[8];
+    /* 0x2C */ u8 depth;
+    /* 0x2D */ s8 value;
 } macro;
 
 typedef union subtrack_updates {
