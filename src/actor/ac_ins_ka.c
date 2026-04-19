@@ -271,7 +271,7 @@ static void aIKA_setupAction(aINS_INSECT_ACTOR* insect, int action, GAME* game) 
 static void aIKA_actor_move(ACTOR* actorx, GAME* game) {
     aINS_INSECT_ACTOR* insect = (aINS_INSECT_ACTOR*)actorx;
     GAME_PLAY* play = (GAME_PLAY*)game;
-    u32 label;
+    uintptr_t label;
 
     if (mPlib_get_player_actor_main_index(game) != mPlayer_INDEX_PUTAWAY_NET && insect->action != aIKA_ACTION_ATTACK) {
         aIKA_anime_proc(insect, game);

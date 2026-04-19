@@ -147,7 +147,6 @@ static void aIBT_set_fly_se(aINS_INSECT_ACTOR* insect) {
 
 static int aIBT_check_player_net_sub(xyz_t* net_pos, aINS_INSECT_ACTOR* insect) {
     int ret;
-    u32 label;
 
     ret = FALSE;
     if (mPlib_Check_StopNet(net_pos) == TRUE) {
