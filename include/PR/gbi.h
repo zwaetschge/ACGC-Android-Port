@@ -76,6 +76,14 @@ uintptr_t pc_gbi_unpack_runtime_ptr(unsigned int packed);
 #endif
 #endif
 
+/* N64/GC "long" is 32 bits. Display-list and matrix layouts depend on it, so
+ * 64-bit PC builds (where long is 8 bytes) use int instead. */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#define _GBI_LONG int
+#else
+#define _GBI_LONG long
+#endif
+
 /*
  * To use the F3DEX ucodes, define F3DEX_GBI before include this file.
  *
@@ -1186,7 +1194,7 @@ typedef struct {
  * First 8 words are integer portion of the 4x4 matrix
  * Last 8 words are the fraction portion of the 4x4 matrix
  */
-typedef long	Mtx_t[4][4];
+typedef _GBI_LONG	Mtx_t[4][4];
 
 typedef union {
     Mtx_t		m;
@@ -1474,7 +1482,7 @@ typedef struct {
 
 typedef union {
     Hilite_t	h;
-    long int	force_structure_alignment[4];
+    _GBI_LONG	force_structure_alignment[4];
 } Hilite;
 
 #define gdSPDefLights0(ar,ag,ab)					\
@@ -1739,7 +1747,7 @@ typedef struct {
 		unsigned int	prim_min_level:8;
 		unsigned int	pad:8;
 		int		cmd:8;
-		unsigned long	color;
+		unsigned _GBI_LONG	color;
 } Gsetcolor;
 #else
 typedef struct {
@@ -1747,7 +1755,7 @@ typedef struct {
 		unsigned char	pad;
 		unsigned char	prim_min_level;
 		unsigned char	prim_level;
-		unsigned long	color;
+		unsigned _GBI_LONG	color;
 } Gsetcolor;
 #endif
 
@@ -1886,10 +1894,10 @@ typedef struct {
  * Textured rectangles are 128 bits not 64 bits
  */	
 typedef struct {
-    unsigned long w0;
-    unsigned long w1;
-    unsigned long w2;
-    unsigned long w3;
+    unsigned _GBI_LONG w0;
+    unsigned _GBI_LONG w1;
+    unsigned _GBI_LONG w2;
+    unsigned _GBI_LONG w3;
 } TexRect;
 
 /*

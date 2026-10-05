@@ -8,23 +8,25 @@
 #if __SIZEOF_POINTER__ == 8
 #include "pc_gbi_ptr.h"
 
-/* 64-bit: Gwords.w1 is uintptr_t, so display lists carry full pointers and
-   real pointers never fall in the N64 segment range. Values that do are
-   segment references; if their segment is unset, try to recover a pointer
-   that was truncated to 32 bits somewhere on the way. */
+/* 64-bit: Gwords.w1 is uintptr_t, so most display lists carry full pointers.
+   Values that fit in 32 bits are either N64 segment references or pointers
+   that were truncated on the way (u32 fields in model/animation data); the
+   latter are recovered from the arena / library image base. */
 uintptr_t emu64::seg2k0(uintptr_t segadr) {
-    if ((segadr >> 28) != 0 || segadr < 0x03000000) {
+    if (segadr > 0xFFFFFFFFu || segadr == 0) {
         return segadr;
     }
 
-    uintptr_t base = this->segments[(segadr >> 24) & 0xF] & ~(uintptr_t)1;
+    if (segadr >= 0x03000000u && segadr <= 0x0FFFFFFFu) {
+        uintptr_t base = this->segments[(segadr >> 24) & 0xF] & ~(uintptr_t)1;
 
-    if (base == 0) {
-        return pc_gbi_recover_ptr((unsigned int)segadr);
+        if (base != 0) {
+            this->resolved_addresses++;
+            return base + (segadr & 0xFFFFFF);
+        }
     }
 
-    this->resolved_addresses++;
-    return base + (segadr & 0xFFFFFF);
+    return pc_gbi_recover_ptr((unsigned int)segadr);
 }
 #else
 static_assert(sizeof(void*) == sizeof(u32), "seg2k0 pointer resolution requires 32-bit pointers");
