@@ -66,3 +66,9 @@ app/src/main/cpp/third_party/
 *.dds
 translations/
 texture_pack/
+
+# release signing (never commit)
+keystore.properties
+*.jks
+*.p12
+*.keystore

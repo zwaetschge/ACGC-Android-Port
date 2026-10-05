@@ -4,6 +4,9 @@ An Android port of [flyngmt/ACGC-PC-Port](https://github.com/flyngmt/ACGC-PC-Por
 Animal Crossing built on the [ac-decomp](https://github.com/ACreTeam/ac-decomp) decompilation.
 The original game code runs natively on the device; GX is translated to OpenGL ES 3.
 
+> Built with AI coding agents – **Z.ai (GLM)**, **OpenAI Codex** and **Claude** – under human supervision.
+> See [How this port was made](#how-this-port-was-made).
+
 **This repository and the app contain no game data.** You need your own copy of the game.
 HD textures and translations are fetched or generated **on the device, by you**, from their
 original sources (see below).
@@ -14,6 +17,11 @@ original sources (see below).
 | Devices | Android 8+ with a **32-bit capable** ARM CPU (`armeabi-v7a`) and OpenGL ES 3. Devices that only run 64-bit apps (e.g. some recent handhelds) are not supported yet – the decomp's display-list code packs pointers into 32-bit words, like upstream. |
 | HD textures (optional) | needs `GL_KHR_texture_compression_astc_ldr` (practically every current Android GPU) |
 
+## Download
+
+Get the APK from [Releases](https://github.com/zwaetschge/ACGC-Android-Port/releases). It contains no game
+data; the launcher walks you through importing your own disc.
+
 ## Features
 
 - Full game, Dolphin-compatible GCI saves (app-private storage)
@@ -21,7 +29,8 @@ original sources (see below).
 - Gamepad, keyboard and an on-screen **touch overlay** (GameCube layout, hides when a controller is used)
 - Outdoor C-stick camera and the QoL options of upstream 0.9.3 (bells to wallet, fast text, tree shaking with net/rod, …)
 - **HD texture pack**: one-tap download of the community *Animal Crossing HD Texture Pack* and on-device BC7 → ASTC conversion
-- **Translations** (German, French, Italian, Spanish, English-EU) generated from your European disc (GAFP01)
+- **Translations** (German, French, Italian, Spanish) generated from your European disc (GAFP01)
+- Launcher in the system language (English, German, French, Italian, Spanish) with a language switch that also selects the game language
 
 ## Using the app
 
@@ -33,8 +42,10 @@ The launcher has three steps:
    pack's [Dolphin forum thread](https://forums.dolphin-emu.org/Thread-animal-crossing-hd-texture-pack-version-23-feb-22nd-2026)
    and converts it (about 2 minutes on a recent phone, ~1.5 GB). If Google Drive refuses the download, get the
    ZIP from the thread yourself and use *Choose ZIP*.
-3. **Language (optional)** – *Create translation* asks for the language and your **European** disc image
-   (GAFP01, NKit works) and extracts that language's text, item names and villager names into the app.
+3. **Language (optional)** – the language chip (top right) selects the launcher and game language; it
+   defaults to the system language. For German, French, Italian or Spanish, *Create from EU disc* asks for
+   your **European** disc image (GAFP01, NKit works) and extracts that language's text, item names and
+   villager names into the app. English is built in.
    German additionally gets the pack's German UI textures (notice board, HUD, inventory labels) when HD
    textures are installed.
 
@@ -65,6 +76,21 @@ translation tools in `app/src/main/python/`.
 | `app/src/main/assets/l10n/de-DE_textures.json` | PAL→USA texture *hash* table for the German UI textures (no image data) |
 | `tools/android/` | desktop scripts used to create the hash table / test conversions |
 | `docs/README-PC-PORT.md` | the upstream PC port README |
+
+### Release builds
+
+`./gradlew assembleRelease` signs with the key from a `keystore.properties` in the project root
+(`storePassword`, `keyPassword`, `keyAlias` and `storeFile` or `storeBase64`, PKCS12; never committed).
+Without it the release APK is signed with the debug key.
+
+## How this port was made
+
+This Android port was developed with AI coding agents, supervised and tested on real hardware by a human:
+**[Z.ai](https://z.ai) (GLM)**, **[OpenAI Codex](https://openai.com/codex)** and
+**[Claude](https://claude.com/claude-code) (Anthropic)**. They did the porting work – GLES3 shell, input,
+widescreen UI, touch controls, the BC7→ASTC converter, the on-device disc/translation tooling – and the
+debugging on an Android tablet (e.g. the clock overflow, the dialogue wedge and the translation offset bug).
+The decompilation and the PC port it builds on are the work of the people credited below.
 
 ## Credits
 

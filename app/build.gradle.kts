@@ -1,4 +1,6 @@
 import java.net.URI
+import java.util.Base64
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -46,6 +48,11 @@ val fetchThirdParty by tasks.registering {
 tasks.matching { it.name == "preBuild" || it.name.startsWith("configureCMake") }
     .configureEach { dependsOn(fetchThirdParty) }
 
+// Release signing: keystore.properties (not committed) with storePassword, keyPassword,
+// keyAlias and either storeFile (path) or storeBase64. Without it, release builds are
+// signed with the debug key so `assembleRelease` still produces an installable APK.
+val signingProps = rootProject.file("keystore.properties")
+
 android {
     namespace = "com.acpc.port"
     compileSdk = 34
@@ -55,8 +62,8 @@ android {
         applicationId = "com.acpc.port"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         ndk {
             // The decomp's emu64 display list interpreter packs host pointers
             // into 32-bit GBI words -> the port is 32-bit only (like upstream).
@@ -79,9 +86,31 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            if (signingProps.exists()) {
+                val p = Properties().apply { signingProps.inputStream().use { load(it) } }
+                val b64 = p.getProperty("storeBase64")
+                storeFile = if (b64 != null) {
+                    layout.buildDirectory.file("signing/release.p12").get().asFile.apply {
+                        parentFile.mkdirs()
+                        writeBytes(Base64.getMimeDecoder().decode(b64))
+                    }
+                } else {
+                    rootProject.file(p.getProperty("storeFile"))
+                }
+                storeType = "pkcs12"
+                storePassword = p.getProperty("storePassword")
+                keyAlias = p.getProperty("keyAlias")
+                keyPassword = p.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName(if (signingProps.exists()) "release" else "debug")
         }
     }
 

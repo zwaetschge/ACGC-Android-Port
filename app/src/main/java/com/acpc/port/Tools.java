@@ -20,14 +20,55 @@ final class Tools {
         void onProgress(String message);
     }
 
-    static final String[][] LANGUAGES = {
-            {"default", "English (USA)"},
-            {"de-DE", "Deutsch"},
-            {"fr-FR", "Français"},
-            {"it-IT", "Italiano"},
-            {"es-ES", "Español"},
-            {"en-EU", "English (Europe)"},
-    };
+    /** Launcher/game languages: UI locale code -> translation profile (translations/<profile>). */
+    static final String[] UI_LANGS = {"en", "de", "fr", "it", "es"};
+
+    static String gameProfile(String uiLang) {
+        switch (uiLang) {
+            case "de": return "de-DE";
+            case "fr": return "fr-FR";
+            case "it": return "it-IT";
+            case "es": return "es-ES";
+            default: return "default"; // US English, built into the disc
+        }
+    }
+
+    /** Native name of a UI language ("Deutsch", "Français", ...). */
+    static String displayName(String uiLang) {
+        java.util.Locale l = new java.util.Locale(uiLang);
+        String n = l.getDisplayLanguage(l);
+        return n.isEmpty() ? uiLang : Character.toUpperCase(n.charAt(0)) + n.substring(1);
+    }
+
+    /** "system" or one of UI_LANGS. */
+    static String languageChoice(Context ctx) {
+        return ctx.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("lang", "system");
+    }
+
+    static void setLanguageChoice(Context ctx, String choice) {
+        ctx.getSharedPreferences("ui", Context.MODE_PRIVATE).edit().putString("lang", choice).apply();
+    }
+
+    static String systemLanguage() {
+        String sys = java.util.Locale.getDefault().getLanguage();
+        for (String l : UI_LANGS) if (l.equals(sys)) return l;
+        return "en";
+    }
+
+    /** Effective UI language (choice or system). */
+    static String uiLanguage(Context ctx) {
+        String c = languageChoice(ctx);
+        return c.equals("system") ? systemLanguage() : c;
+    }
+
+    /** Context whose resources use the chosen UI language. */
+    static Context localized(Context base) {
+        String c = base.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("lang", "system");
+        if (c.equals("system")) return base;
+        android.content.res.Configuration cfg = new android.content.res.Configuration(base.getResources().getConfiguration());
+        cfg.setLocale(new java.util.Locale(c));
+        return base.createConfigurationContext(cfg);
+    }
 
     private Tools() {
     }
@@ -59,12 +100,10 @@ final class Tools {
         return new File(ctx.getFilesDir(), "translations/" + lang + "/msg.bin").isFile();
     }
 
-    static List<String[]> installedLanguages(Context ctx) {
-        List<String[]> out = new ArrayList<>();
-        for (String[] l : LANGUAGES) {
-            if (l[0].equals("default") || hasTranslation(ctx, l[0])) out.add(l);
-        }
-        return out;
+    /** Writes the game language for the chosen UI language (English when no translation exists). */
+    static void applyGameLanguage(Context ctx) throws IOException {
+        String profile = gameProfile(uiLanguage(ctx));
+        setLanguage(ctx, hasTranslation(ctx, profile) ? profile : "default");
     }
 
     /* settings.ini is owned by the game; only the [Localization] language key is edited here. */

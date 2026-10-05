@@ -3,11 +3,20 @@ package com.acpc.port;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
+import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.InputType;
+import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -24,212 +33,253 @@ import java.util.Locale;
 
 /**
  * Launcher: the user provides every game asset themselves.
- *  1. USA disc (GAFE01) - required, imported from a file or SMB share (NKit is converted)
- *  2. HD texture pack   - optional, downloaded from its original source and converted
- *  3. Translation       - optional, generated from the user's European disc (GAFP01)
+ *  - USA disc (GAFE01), required: file picker or SMB share (NKit is converted)
+ *  - HD texture pack, optional: downloaded from its original source and converted
+ *  - translation, optional: generated from the user's European disc (GAFP01)
+ * The UI follows the system language unless another language is chosen; the
+ * same choice selects the game language when its translation exists.
  */
 public class MainActivity extends Activity {
 
     private enum Purpose { US_DISC, EU_DISC, HD_ZIP }
 
-    private static final boolean DE = Locale.getDefault().getLanguage().equals("de");
+    // palette
+    private static final int BG_TOP = 0xFF0E2A22, BG_BOTTOM = 0xFF1B4334;
+    private static final int CARD = 0xFF1C3A2E, CARD_STROKE = 0xFF2F5A47;
+    private static final int TEXT = 0xFFF4F0E2, TEXT_DIM = 0xFFA9C2B2, ON_ACCENT = 0xFF16261E;
+    private static final int GREEN = 0xFF8CCB6E, YELLOW = 0xFFF5D76E, RED = 0xFFE88080, GREY = 0xFF7C9086;
+    private static final int GHOST = 0x22FFFFFF;
 
-    private TextView romStatus, hdStatus, langStatus;
-    private String pendingLang = "de-DE";
+    private LinearLayout root;
 
-    static String tr(String de, String en) {
-        return DE ? de : en;
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(Tools.localized(base));
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
-        LinearLayout root = new LinearLayout(this);
+        scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{BG_TOP, BG_BOTTOM}));
+        root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(24), dp(32), dp(24), dp(24));
+        root.setPadding(dp(28), dp(26), dp(28), dp(28));
         scroll.addView(root);
         setContentView(scroll);
-
-        TextView title = text(getString(R.string.app_name), 30, R.color.ac_text);
-        title.setGravity(Gravity.CENTER);
-        root.addView(title);
-        TextView subtitle = text(tr("Nativer Port von ACGC-PC-Port · Spieldaten bringst du selbst mit",
-                "Native port of ACGC-PC-Port · bring your own game data"), 13, R.color.ac_text_dim);
-        subtitle.setGravity(Gravity.CENTER);
-        root.addView(subtitle);
-
-        Button start = button(tr("Spiel starten", "Start game"));
-        start.setTextSize(19);
-        start.setOnClickListener(v -> {
-            File rom = RomManager.findRom(this);
-            if (rom == null || !RomManager.readInfo(rom).isRequired()) {
-                toast(tr("Zuerst die US-Disc (GAFE01) importieren.", "Import the USA disc (GAFE01) first."));
-                return;
-            }
-            startActivity(new Intent(this, GameActivity.class));
-        });
-        root.addView(start, margins(dp(20), 0));
-
-        // 1. game data
-        root.addView(header(tr("1 · Spieldaten (Pflicht)", "1 · Game data (required)")));
-        romStatus = text("", 13, R.color.ac_text_dim);
-        root.addView(romStatus);
-        root.addView(row(
-                button(tr("Datei wählen", "Choose file"), () -> pickFile(Purpose.US_DISC)),
-                button(tr("Von SMB-Share", "From SMB share"), () -> smbDialog(Purpose.US_DISC))));
-        root.addView(note(tr("Animal Crossing USA (GAFE01) als .iso, .gcm, .ciso oder NKit (.nkit.iso).",
-                "Animal Crossing USA (GAFE01) as .iso, .gcm, .ciso or NKit (.nkit.iso).")));
-
-        // 2. HD textures
-        root.addView(header(tr("2 · HD-Texturen (optional)", "2 · HD textures (optional)")));
-        hdStatus = text("", 13, R.color.ac_text_dim);
-        root.addView(hdStatus);
-        root.addView(row(
-                button(tr("Herunterladen & installieren", "Download & install"), this::confirmHdDownload),
-                button(tr("ZIP wählen", "Choose ZIP"), () -> pickFile(Purpose.HD_ZIP))));
-        root.addView(row(button(tr("HD-Texturen entfernen", "Remove HD textures"), () -> {
-            HdPack.remove(this);
-            refresh();
-        })));
-        root.addView(note(tr("„Animal Crossing HD Texture Pack“ (" + HdPack.NAME + ") von TechieAndroid, Brackenhawk "
-                + "und der AC-Modding-Community. Wird von der Originalquelle geladen und auf dem Gerät "
-                + "umgewandelt (einmalig einige Minuten, ca. 1,5 GB).",
-                "\"Animal Crossing HD Texture Pack\" (" + HdPack.NAME + ") by TechieAndroid, Brackenhawk and the "
-                + "AC modding community. Downloaded from its original source and converted on the device "
-                + "(one-time, a few minutes, about 1.5 GB).")));
-
-        // 3. language
-        root.addView(header(tr("3 · Sprache (optional)", "3 · Language (optional)")));
-        langStatus = text("", 13, R.color.ac_text_dim);
-        root.addView(langStatus);
-        root.addView(row(
-                button(tr("Sprache wählen", "Choose language"), this::chooseLanguage),
-                button(tr("Übersetzung erstellen", "Create translation"), this::createTranslation)));
-        root.addView(note(tr("Übersetzungen werden aus deiner europäischen Disc (GAFP01) erzeugt; "
-                + "die Texte werden nicht mit der App verteilt. Basierend auf dem l10n-Branch von birabittoh.",
-                "Translations are generated from your European disc (GAFP01); no game text ships with "
-                + "the app. Based on birabittoh's l10n branch.")));
-
-        root.addView(header(tr("Steuerung", "Controls")));
-        Button overlay = button("");
-        overlay.setOnClickListener(v -> {
-            GameActivity.setTouchOverlayEnabled(this, !GameActivity.touchOverlayEnabled(this));
-            overlay.setText(overlayLabel());
-        });
-        overlay.setText(overlayLabel());
-        root.addView(row(overlay));
-        root.addView(note(tr("Gamepad, Tastatur oder Touch-Overlay (blendet sich bei Controller-Eingaben aus). "
-                + "Select/Back = Pause-Menü.",
-                "Gamepad, keyboard or touch overlay (hides while a controller is used). Select/Back = pause menu.")));
-        refresh();
+        getWindow().setStatusBarColor(BG_TOP);
+        getWindow().setNavigationBarColor(BG_BOTTOM);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        refresh();
+        build();
     }
 
-    private String overlayLabel() {
-        return GameActivity.touchOverlayEnabled(this)
-                ? tr("Touch-Overlay: an", "Touch overlay: on")
-                : tr("Touch-Overlay: aus", "Touch overlay: off");
-    }
+    /** (Re)builds the whole screen from the current state. */
+    private void build() {
+        root.removeAllViews();
 
-    private void refresh() {
+        // header: title + language chip
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout titles = new LinearLayout(this);
+        titles.setOrientation(LinearLayout.VERTICAL);
+        titles.addView(text(getString(R.string.app_name), 34, TEXT, true));
+        titles.addView(text(getString(R.string.tagline), 14, TEXT_DIM, false));
+        header.addView(titles, new LinearLayout.LayoutParams(0, -2, 1f));
+        header.addView(pill("🌐  " + Tools.displayName(Tools.uiLanguage(this)) + "  ▾", GHOST, TEXT, this::chooseLanguage));
+        root.addView(header);
+
+        // play
         File rom = RomManager.findRom(this);
+        boolean ready = rom != null && RomManager.readInfo(rom).isRequired();
+        Button play = new Button(this);
+        play.setText("▶  " + getString(R.string.play));
+        play.setTextSize(22);
+        play.setAllCaps(false);
+        play.setTypeface(Typeface.DEFAULT_BOLD);
+        play.setTextColor(ready ? 0xFF2B2A1E : 0xFF6E7C74);
+        play.setStateListAnimator(null);
+        play.setBackground(rounded(ready ? YELLOW : 0xFF2E4238, dp(18), 0));
+        play.setPadding(0, dp(18), 0, dp(18));
+        play.setOnClickListener(v -> play());
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-1, -2);
+        plp.topMargin = dp(22);
+        plp.leftMargin = plp.rightMargin = dp(6);
+        root.addView(play, plp);
+        TextView hint = text(getString(ready ? R.string.play_ready : R.string.play_need_disc), 13,
+                ready ? GREEN : TEXT_DIM, false);
+        hint.setGravity(Gravity.CENTER);
+        hint.setPadding(0, dp(8), 0, dp(6));
+        root.addView(hint);
+
+        // cards, two columns on wide screens
+        View[] cards = {discCard(rom), hdCard(), languageCard(), controlsCard()};
+        if (getResources().getConfiguration().screenWidthDp >= 700) {
+            root.addView(pair(cards[0], cards[1]));
+            root.addView(pair(cards[2], cards[3]));
+        } else {
+            for (View c : cards) root.addView(c, cardParams(false));
+        }
+    }
+
+    /* ---------- cards ---------- */
+
+    private View discCard(File rom) {
+        LinearLayout c = card("💿", getString(R.string.disc_title));
         if (rom == null) {
-            romStatus.setText(tr("✗ Keine Disc importiert", "✗ No disc imported"));
+            status(c, GREY, getString(R.string.disc_missing));
         } else {
             RomManager.Info info = RomManager.readInfo(rom);
-            romStatus.setText(info.isRequired()
-                    ? String.format(Locale.US, "✓ %s Rev %d · %s", info.id, info.revision, rom.getName())
-                    : String.format(Locale.US, tr("✗ Falsche Disc: %s (GAFE01 nötig)", "✗ Wrong disc: %s (GAFE01 needed)"), info.id));
+            if (info.isRequired()) {
+                status(c, GREEN, getString(R.string.disc_ok, info.id, info.revision, rom.getName()));
+            } else {
+                status(c, RED, getString(R.string.disc_wrong, info.id));
+            }
         }
+        desc(c, getString(R.string.disc_desc));
+        actions(c, pill(getString(R.string.choose_file), GREEN, ON_ACCENT, () -> pickFile(Purpose.US_DISC)),
+                pill(getString(R.string.from_smb), GHOST, TEXT, () -> smbDialog(Purpose.US_DISC)));
+        return c;
+    }
+
+    private View hdCard() {
+        LinearLayout c = card("✨", getString(R.string.hd_title));
         String hd = HdPack.installed(this);
-        hdStatus.setText(hd != null ? "✓ " + hd : tr("– nicht installiert", "– not installed"));
-        String lang = Tools.getLanguage(this);
-        StringBuilder sb = new StringBuilder();
-        for (String[] l : Tools.installedLanguages(this)) {
-            if (sb.length() > 0) sb.append(", ");
-            sb.append(l[1]);
-            if (l[0].equals(lang)) sb.append(" ✓");
+        status(c, hd != null ? GREEN : GREY,
+                hd != null ? getString(R.string.hd_installed, hd) : getString(R.string.hd_missing));
+        desc(c, getString(R.string.hd_desc));
+        if (hd == null) {
+            actions(c, pill(getString(R.string.hd_download), GREEN, ON_ACCENT, this::confirmHdDownload),
+                    pill(getString(R.string.hd_zip), GHOST, TEXT, () -> pickFile(Purpose.HD_ZIP)));
+        } else {
+            actions(c, pill(getString(R.string.hd_remove), GHOST, TEXT, () -> new AlertDialog.Builder(this)
+                    .setTitle(hd)
+                    .setMessage(R.string.hd_remove_confirm)
+                    .setPositiveButton(R.string.hd_remove, (d, w) -> {
+                        HdPack.remove(this);
+                        build();
+                    })
+                    .setNegativeButton(R.string.cancel, null)
+                    .show()));
         }
-        langStatus.setText(tr("Verfügbar: ", "Available: ") + sb);
+        return c;
     }
 
-    /* ---------- HD textures ---------- */
-
-    private void confirmHdDownload() {
-        new AlertDialog.Builder(this)
-                .setTitle(HdPack.NAME)
-                .setMessage(tr("Lädt ca. 146 MB von Google Drive (Link aus dem Dolphin-Forum-Thread des Packs) "
-                        + "und wandelt die Texturen für dein Gerät um. Fortfahren?",
-                        "Downloads about 146 MB from Google Drive (link from the pack's Dolphin forum thread) "
-                        + "and converts the textures for this device. Continue?"))
-                .setPositiveButton("OK", (d, w) -> runTask(tr("HD-Texturen", "HD textures"), pd -> {
-                    File zip = HdPack.download(this, (stage, done, total) -> progress(pd,
-                            tr("Download", "Download") + " " + (done >> 20) + " MB", done, total));
-                    installHd(pd, zip);
-                }))
-                .setNegativeButton(tr("Abbrechen", "Cancel"), null)
-                .show();
+    private View languageCard() {
+        LinearLayout c = card("🌐", getString(R.string.lang_title));
+        String ui = Tools.uiLanguage(this);
+        String name = Tools.displayName(ui);
+        String profile = Tools.gameProfile(ui);
+        if (profile.equals("default")) {
+            status(c, GREEN, getString(R.string.lang_builtin));
+        } else if (Tools.hasTranslation(this, profile)) {
+            status(c, GREEN, getString(R.string.lang_ready, name));
+        } else {
+            status(c, YELLOW, getString(R.string.lang_missing, name));
+        }
+        desc(c, getString(R.string.lang_desc));
+        Button chooser = pill(getString(R.string.language) + ": " + name, GHOST, TEXT, this::chooseLanguage);
+        if (profile.equals("default")) {
+            actions(c, chooser);
+        } else {
+            boolean have = Tools.hasTranslation(this, profile);
+            actions(c, pill(getString(R.string.lang_create), have ? GHOST : GREEN, have ? TEXT : ON_ACCENT,
+                    this::createTranslation), chooser);
+        }
+        return c;
     }
 
-    private void installHd(ProgressDialog pd, File zip) throws Exception {
+    private View controlsCard() {
+        LinearLayout c = card("🎮", getString(R.string.controls_title));
+        boolean on = GameActivity.touchOverlayEnabled(this);
+        status(c, on ? GREEN : GREY, getString(on ? R.string.overlay_on : R.string.overlay_off));
+        desc(c, getString(R.string.controls_desc));
+        actions(c, pill(getString(on ? R.string.turn_off : R.string.turn_on), GHOST, TEXT, () -> {
+            GameActivity.setTouchOverlayEnabled(this, !GameActivity.touchOverlayEnabled(this));
+            build();
+        }));
+        return c;
+    }
+
+    /* ---------- actions ---------- */
+
+    private void play() {
+        File rom = RomManager.findRom(this);
+        if (rom == null || !RomManager.readInfo(rom).isRequired()) {
+            toast(getString(R.string.play_need_disc));
+            return;
+        }
         try {
-            int n = HdPack.install(this, zip, (stage, done, total) -> progress(pd,
-                    tr("Umwandeln ", "Converting ") + done + " / " + total, done, total));
-            runOnUiThread(() -> toast(n + tr(" Texturen installiert", " textures installed")));
-        } finally {
-            zip.delete();
+            Tools.applyGameLanguage(this);
+        } catch (Exception e) {
+            error(e);
+            return;
         }
+        startActivity(new Intent(this, GameActivity.class));
     }
-
-    /* ---------- language ---------- */
 
     private void chooseLanguage() {
-        List<String[]> langs = Tools.installedLanguages(this);
-        String[] names = new String[langs.size()];
-        for (int i = 0; i < names.length; i++) names[i] = langs.get(i)[1];
+        String[] choices = new String[Tools.UI_LANGS.length + 1];
+        String[] labels = new String[choices.length];
+        choices[0] = "system";
+        labels[0] = getString(R.string.lang_system, Tools.displayName(Tools.systemLanguage()));
+        for (int i = 0; i < Tools.UI_LANGS.length; i++) {
+            choices[i + 1] = Tools.UI_LANGS[i];
+            labels[i + 1] = Tools.displayName(Tools.UI_LANGS[i]);
+        }
+        int current = 0;
+        for (int i = 0; i < choices.length; i++) {
+            if (choices[i].equals(Tools.languageChoice(this))) current = i;
+        }
         new AlertDialog.Builder(this)
-                .setTitle(tr("Sprache", "Language"))
-                .setItems(names, (d, i) -> {
-                    try {
-                        Tools.setLanguage(this, langs.get(i)[0]);
-                    } catch (Exception e) {
-                        error(e);
-                    }
-                    refresh();
+                .setTitle(R.string.language)
+                .setSingleChoiceItems(labels, current, (d, i) -> {
+                    d.dismiss();
+                    Tools.setLanguageChoice(this, choices[i]);
+                    recreate(); // reload resources in the new language
                 })
                 .show();
     }
 
     private void createTranslation() {
         if (RomManager.findRom(this) == null) {
-            toast(tr("Zuerst die US-Disc importieren.", "Import the USA disc first."));
+            toast(getString(R.string.lang_need_disc));
             return;
         }
-        String[][] all = Tools.LANGUAGES;
-        String[] names = new String[all.length - 1];
-        for (int i = 1; i < all.length; i++) names[i - 1] = all[i][1];
         new AlertDialog.Builder(this)
-                .setTitle(tr("Welche Sprache?", "Which language?"))
-                .setItems(names, (d, i) -> {
-                    pendingLang = all[i + 1][0];
-                    new AlertDialog.Builder(this)
-                            .setTitle(tr("Europäische Disc (GAFP01)", "European disc (GAFP01)"))
-                            .setItems(new String[]{tr("Datei wählen", "Choose file"), tr("Von SMB-Share", "From SMB share")},
-                                    (d2, j) -> {
-                                        if (j == 0) pickFile(Purpose.EU_DISC);
-                                        else smbDialog(Purpose.EU_DISC);
-                                    })
-                            .show();
+                .setTitle(R.string.eu_disc)
+                .setItems(new String[]{getString(R.string.choose_file), getString(R.string.from_smb)}, (d, j) -> {
+                    if (j == 0) pickFile(Purpose.EU_DISC);
+                    else smbDialog(Purpose.EU_DISC);
                 })
                 .show();
+    }
+
+    private void confirmHdDownload() {
+        new AlertDialog.Builder(this)
+                .setTitle(HdPack.NAME)
+                .setMessage(R.string.hd_confirm)
+                .setPositiveButton(android.R.string.ok, (d, w) -> runTask(getString(R.string.hd_title), pd -> {
+                    File zip = HdPack.download(this, (stage, done, total) ->
+                            progress(pd, getString(R.string.downloading, (int) (done >> 20)), done, total));
+                    installHd(pd, zip);
+                }))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void installHd(ProgressDialog pd, File zip) throws Exception {
+        try {
+            int n = HdPack.install(this, zip, (stage, done, total) ->
+                    progress(pd, getString(R.string.converting, (int) done, (int) total), done, total));
+            runOnUiThread(() -> toast(getString(R.string.textures_installed, n)));
+        } finally {
+            zip.delete();
+        }
     }
 
     /* ---------- file sources ---------- */
@@ -253,7 +303,7 @@ public class MainActivity extends Activity {
         Uri uri = data.getData();
         if (uri == null) return;
         Purpose p = Purpose.values()[idx];
-        runTask(tr("Import", "Import"), pd -> {
+        runTask(getString(R.string.import_title), pd -> {
             File tmp = tempFor(p);
             try (InputStream in = getContentResolver().openInputStream(uri)) {
                 if (in == null) throw new IllegalStateException("no stream");
@@ -270,16 +320,14 @@ public class MainActivity extends Activity {
                 case US_DISC: {
                     String info = Tools.discInfo(this, tmp);
                     if (!info.startsWith("GAFE01")) {
-                        throw new IllegalArgumentException(tr("Das ist nicht die US-Disc (GAFE01): ",
-                                "This is not the USA disc (GAFE01): ") + info);
+                        throw new IllegalArgumentException(getString(R.string.not_us_disc, info));
                     }
-                    Tools.importUsDisc(this, tmp, msg -> message(pd, msg));
+                    Tools.importUsDisc(this, tmp, msg -> step(pd, msg));
                     break;
                 }
                 case EU_DISC: {
-                    File rom = RomManager.findRom(this);
-                    Tools.generateTranslation(this, rom, tmp, pendingLang, msg -> message(pd, msg));
-                    Tools.setLanguage(this, pendingLang);
+                    String profile = Tools.gameProfile(Tools.uiLanguage(this));
+                    Tools.generateTranslation(this, RomManager.findRom(this), tmp, profile, msg -> step(pd, msg));
                     break;
                 }
                 case HD_ZIP:
@@ -294,23 +342,23 @@ public class MainActivity extends Activity {
     private void smbDialog(Purpose p) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(18), dp(8), dp(18), 0);
-        EditText host = field(box, tr("Server (Host / IP)", "Server (host / IP)"), pref("host"));
-        EditText user = field(box, tr("Benutzer (leer = Gast)", "User (empty = guest)"), pref("user"));
-        EditText pass = field(box, tr("Passwort", "Password"), pref("pass"));
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        EditText host = field(box, getString(R.string.smb_server), pref("host"));
+        EditText user = field(box, getString(R.string.smb_user), pref("user"));
+        EditText pass = field(box, getString(R.string.smb_password), pref("pass"));
         pass.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        EditText share = field(box, tr("Share-Pfad (z. B. /Games/gc)", "Share path (e.g. /Games/gc)"), pref("share"));
+        EditText share = field(box, getString(R.string.smb_share), pref("share"));
         new AlertDialog.Builder(this)
                 .setTitle("SMB")
                 .setView(box)
-                .setPositiveButton(tr("Verbinden", "Connect"), (d, w) -> {
+                .setPositiveButton(R.string.connect, (d, w) -> {
                     savePref("host", host.getText().toString().trim());
                     savePref("user", user.getText().toString().trim());
                     savePref("pass", pass.getText().toString());
                     savePref("share", share.getText().toString().trim());
                     smbList(p);
                 })
-                .setNegativeButton(tr("Abbrechen", "Cancel"), null)
+                .setNegativeButton(R.string.cancel, null)
                 .show();
     }
 
@@ -320,7 +368,7 @@ public class MainActivity extends Activity {
             List<SmbClient.Entry> entries = client.listRomFiles(pref("share"));
             runOnUiThread(() -> {
                 if (entries.isEmpty()) {
-                    toast(tr("Keine Disc-Images gefunden", "No disc images found"));
+                    toast(getString(R.string.no_disc_images));
                     return;
                 }
                 String[] names = new String[entries.size()];
@@ -329,7 +377,7 @@ public class MainActivity extends Activity {
                             entries.get(i).size / 1073741824.0);
                 }
                 new AlertDialog.Builder(this)
-                        .setItems(names, (d, i) -> runTask(tr("Import", "Import"), pd2 -> {
+                        .setItems(names, (d, i) -> runTask(getString(R.string.import_title), pd2 -> {
                             SmbClient.Entry e = entries.get(i);
                             File tmp = tempFor(p);
                             try (InputStream in = client.open(pref("share"), e.name)) {
@@ -337,7 +385,7 @@ public class MainActivity extends Activity {
                             }
                             process(p, tmp, pd2);
                         }))
-                        .setNegativeButton(tr("Abbrechen", "Cancel"), null)
+                        .setNegativeButton(R.string.cancel, null)
                         .show();
             });
         });
@@ -363,13 +411,13 @@ public class MainActivity extends Activity {
                 task.run(pd);
                 runOnUiThread(() -> {
                     pd.dismiss();
-                    refresh();
+                    build();
                 });
             } catch (Throwable e) {
                 runOnUiThread(() -> {
                     pd.dismiss();
                     error(e);
-                    refresh();
+                    build();
                 });
             }
         }, "launcher-task").start();
@@ -384,7 +432,7 @@ public class MainActivity extends Activity {
                 out.write(buf, 0, n);
                 done += n;
                 if ((done & 0xFFFFF) < (1 << 16)) {
-                    progress(pd, tr("Kopiere ", "Copying ") + (done >> 20) + " MB", done, total);
+                    progress(pd, getString(R.string.copying, (int) (done >> 20)), done, total);
                 }
             }
         }
@@ -400,7 +448,10 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void message(ProgressDialog pd, String msg) {
+    /** Progress from the Python tools: step keys map to localized strings. */
+    private void step(ProgressDialog pd, String key) {
+        int id = getResources().getIdentifier(key, "string", getPackageName());
+        String msg = id != 0 ? getString(id) : key;
         runOnUiThread(() -> {
             pd.setIndeterminate(true);
             pd.setMessage(msg);
@@ -411,9 +462,9 @@ public class MainActivity extends Activity {
         String msg = String.valueOf(e.getMessage() != null ? e.getMessage() : e);
         if (e instanceof jcifs.CIFSException) msg = describeSmb(e) + "\n\n(" + msg + ")";
         new AlertDialog.Builder(this)
-                .setTitle(tr("Fehler", "Error"))
+                .setTitle(R.string.error)
                 .setMessage(msg)
-                .setPositiveButton("OK", null)
+                .setPositiveButton(android.R.string.ok, null)
                 .show();
     }
 
@@ -421,70 +472,119 @@ public class MainActivity extends Activity {
         String raw = String.valueOf(e);
         if (e instanceof jcifs.smb.SmbAuthException || raw.contains("Access is denied")
                 || raw.contains("LOGON_FAILURE") || raw.contains("ACCESS_DENIED")) {
-            return tr("Zugriff verweigert – Benutzer und Passwort prüfen (Gastzugriff ist auf dem Server evtl. aus).",
-                    "Access denied – check user and password (the server may not allow guest access).");
+            return "SMB: access denied – check user and password (guest access may be disabled).";
         }
-        if (raw.contains("UnknownHost")) return tr("Server nicht gefunden – Host/IP prüfen.", "Server not found – check host/IP.");
-        return tr("Verbindung fehlgeschlagen – Host/IP und SMB-Port 445 prüfen.",
-                "Connection failed – check host/IP and SMB port 445.");
+        if (raw.contains("UnknownHost")) return "SMB: server not found – check host/IP.";
+        return "SMB: connection failed – check host/IP and port 445.";
     }
 
     /* ---------- UI helpers ---------- */
 
-    private TextView text(String s, int size, int color) {
-        TextView t = new TextView(this);
-        t.setText(s);
-        t.setTextSize(size);
-        t.setTextColor(getColor(color));
-        return t;
+    private LinearLayout card(String icon, String title) {
+        LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setPadding(dp(20), dp(18), dp(20), dp(18));
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(CARD);
+        g.setCornerRadius(dp(20));
+        g.setStroke(dp(1), CARD_STROKE);
+        c.setBackground(g);
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView ic = text(icon, 19, TEXT, false);
+        ic.setGravity(Gravity.CENTER);
+        GradientDrawable circle = new GradientDrawable();
+        circle.setColor(0x1FFFFFFF);
+        circle.setShape(GradientDrawable.OVAL);
+        ic.setBackground(circle);
+        head.addView(ic, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        TextView t = text(title, 19, TEXT, true);
+        t.setPadding(dp(12), 0, 0, 0);
+        head.addView(t);
+        c.addView(head);
+        return c;
     }
 
-    private TextView header(String s) {
-        TextView t = text(s, 17, R.color.ac_primary);
-        t.setLayoutParams(margins(dp(26), dp(4)));
-        return t;
+    private void status(LinearLayout card, int color, String s) {
+        TextView t = text("●  " + s, 14, color, true);
+        t.setPadding(0, dp(12), 0, 0);
+        card.addView(t);
     }
 
-    private TextView note(String s) {
-        TextView t = text(s, 12, R.color.ac_text_dim);
-        t.setLayoutParams(margins(dp(6), 0));
-        return t;
+    private void desc(LinearLayout card, String s) {
+        TextView t = text(s, 13, TEXT_DIM, false);
+        t.setPadding(0, dp(8), 0, 0);
+        t.setLineSpacing(0, 1.15f);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, 0, 1f); // pushes actions to the bottom
+        card.addView(t, lp);
     }
 
-    private Button button(String label) {
-        Button b = new Button(this, null, 0, android.R.style.Widget_Material_Button);
+    private void actions(LinearLayout card, Button... buttons) {
+        LinearLayout r = new LinearLayout(this);
+        r.setBaselineAligned(false);  // auto-sized labels would otherwise shift their pill down
+        r.setPadding(0, dp(14), 0, 0);
+        for (Button b : buttons) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+            lp.rightMargin = dp(8);
+            r.addView(b, lp);
+        }
+        card.addView(r);
+    }
+
+    private LinearLayout pair(View a, View b) {
+        LinearLayout r = new LinearLayout(this);
+        r.addView(a, cardParams(true));
+        r.addView(b, cardParams(true));
+        return r;
+    }
+
+    private LinearLayout.LayoutParams cardParams(boolean column) {
+        LinearLayout.LayoutParams lp = column
+                ? new LinearLayout.LayoutParams(0, -1, 1f)
+                : new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(dp(6), dp(8), dp(6), dp(8));
+        return lp;
+    }
+
+    private Button pill(String label, int fill, int textColor, Runnable action) {
+        Button b = new Button(this);
         b.setText(label);
         b.setAllCaps(false);
-        return b;
-    }
-
-    private Button button(String label, Runnable action) {
-        Button b = button(label);
+        b.setTextSize(14);
+        b.setMaxLines(1);
+        // long translations shrink instead of wrapping inside the pill
+        b.setAutoSizeTextTypeUniformWithConfiguration(10, 14, 1, TypedValue.COMPLEX_UNIT_SP);
+        b.setTypeface(Typeface.DEFAULT_BOLD);
+        b.setTextColor(textColor);
+        b.setStateListAnimator(null);
+        b.setPadding(dp(14), dp(10), dp(14), dp(10));
+        b.setBackground(rounded(fill, dp(22), fill == GHOST ? 0x55FFFFFF : 0));
         b.setOnClickListener(v -> action.run());
         return b;
     }
 
-    private LinearLayout row(Button... buttons) {
-        LinearLayout r = new LinearLayout(this);
-        r.setOrientation(LinearLayout.HORIZONTAL);
-        for (Button b : buttons) {
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
-            lp.rightMargin = dp(6);
-            r.addView(b, lp);
-        }
-        r.setLayoutParams(margins(dp(6), 0));
-        return r;
+    private Drawable rounded(int fill, int radius, int stroke) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(fill);
+        g.setCornerRadius(radius);
+        if (stroke != 0) g.setStroke(dp(1), stroke);
+        GradientDrawable mask = new GradientDrawable();
+        mask.setColor(Color.WHITE);
+        mask.setCornerRadius(radius);
+        return new RippleDrawable(ColorStateList.valueOf(0x40FFFFFF), g, mask);
     }
 
-    private LinearLayout.LayoutParams margins(int top, int bottom) {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.topMargin = top;
-        lp.bottomMargin = bottom;
-        return lp;
+    private TextView text(String s, int size, int color, boolean bold) {
+        TextView t = new TextView(this);
+        t.setText(s);
+        t.setTextSize(size);
+        t.setTextColor(color);
+        if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
+        return t;
     }
 
     private EditText field(LinearLayout box, String label, String initial) {
-        box.addView(text(label, 12, R.color.ac_text_dim));
+        box.addView(text(label, 12, TEXT_DIM, false));
         EditText et = new EditText(this);
         et.setText(initial);
         et.setSingleLine();

@@ -24,6 +24,7 @@ TGC_CODE = {"de-DE": "Gmn", "fr-FR": "Frn", "it-IT": "Itl", "es-ES": "Spn", "en-
 
 
 def _say(cb, msg):
+    """msg is a step key (step_*) that the launcher maps to a localized string."""
     print(msg)
     if cb is not None:
         cb.onProgress(msg)
@@ -53,7 +54,7 @@ def import_us_disc(src, rom_dir, cb=None):
             os.remove(os.path.join(rom_dir, f))
         out = os.path.join(rom_dir, "GAFE01.ciso" if d.kind == "ciso" else "GAFE01.iso")
         if d.kind == "nkit":
-            _say(cb, "NKit → ISO …")
+            _say(cb, "step_nkit")
             d.write_compact_iso(out)
     finally:
         d.close()
@@ -78,7 +79,7 @@ def generate_translation(us_disc, eur_disc, lang, files_dir, work_dir, cb=None):
     os.makedirs(eur_dir)
     os.makedirs(usa_dir)
 
-    _say(cb, "EU-Disc lesen …")
+    _say(cb, "step_read_eur")
     eur = Disc(eur_disc)
     try:
         if not eur.game_id.startswith("GAFP01"):
@@ -92,7 +93,7 @@ def generate_translation(us_disc, eur_disc, lang, files_dir, work_dir, cb=None):
                 f.write(data)
     del tgc
 
-    _say(cb, "US-Disc lesen …")
+    _say(cb, "step_read_us")
     us = Disc(us_disc)
     try:
         for name in ("forest_1st.arc", "forest_2nd.arc"):
@@ -106,7 +107,7 @@ def generate_translation(us_disc, eur_disc, lang, files_dir, work_dir, cb=None):
     os.makedirs(out_dir)
     l10n_flow.ROOT_DIR = Path(files_dir)
 
-    _say(cb, "Texte übertragen (dauert etwas) …")
+    _say(cb, "step_text")
     args = argparse.Namespace(
         eur_arc=os.path.join(eur_dir, "forest_msg.arc"),
         usa_arc=os.path.join(usa_dir, "forest_2nd.arc"),
@@ -114,7 +115,7 @@ def generate_translation(us_disc, eur_disc, lang, files_dir, work_dir, cb=None):
         lang=lang, select_txt=None, out=None)
     l10n_flow.from_eur_flow(args)
 
-    _say(cb, "Nachrichten extrahieren …")
+    _say(cb, "step_msg")
     msg_dir = os.path.join(work_dir, "msg")
     os.makedirs(msg_dir)
     unpack_archive(os.path.join(eur_dir, "forest_msg.arc"), msg_dir)
@@ -126,5 +127,5 @@ def generate_translation(us_disc, eur_disc, lang, files_dir, work_dir, cb=None):
         raise RuntimeError("msg.bin not found in forest_msg.arc")
 
     shutil.rmtree(work_dir, ignore_errors=True)
-    _say(cb, "Fertig")
+    _say(cb, "step_done")
     return out_dir
