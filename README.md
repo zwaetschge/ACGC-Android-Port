@@ -14,7 +14,7 @@ original sources (see below).
 | | |
 |---|---|
 | Game disc | Animal Crossing **USA** (GAFE01, Rev 0) – `.iso`, `.gcm`, `.ciso` or NKit (`.nkit.iso`) |
-| Devices | Android 8+ with a **32-bit capable** ARM CPU (`armeabi-v7a`) and OpenGL ES 3. Devices that only run 64-bit apps (e.g. some recent handhelds) are not supported yet – the decomp's display-list code packs pointers into 32-bit words, like upstream. |
+| Devices | Android 8+, ARM CPU (`arm64-v8a` or `armeabi-v7a`) and OpenGL ES 3. One APK for both; 64-bit-only devices are supported since v0.4.0 (tested on an AYN Odin 3). |
 | HD textures (optional) | needs `GL_KHR_texture_compression_astc_ldr` (practically every current Android GPU) |
 
 ## Download
@@ -24,7 +24,7 @@ data; the launcher walks you through importing your own disc.
 
 ## Features
 
-- Full game, Dolphin-compatible GCI saves (app-private storage)
+- Full game, Dolphin-compatible GCI saves (app-private storage), 32- and 64-bit ARM
 - Fullscreen with hor+ widescreen (16:9, 16:10, …) and a widened UI (dialogs, choices, inventory, HUD)
 - Gamepad, keyboard and an on-screen **touch overlay** (GameCube layout, hides when a controller is used)
 - Outdoor C-stick camera and the QoL options of upstream 0.9.3 (bells to wallet, fast text, tree shaking with net/rod, …)
@@ -98,6 +98,9 @@ The decompilation and the PC port it builds on are the work of the people credit
 - [flyngmt/ACGC-PC-Port](https://github.com/flyngmt/ACGC-PC-Port) – PC port (MIT), includes FixNES (MIT)
 - [birabittoh/ACGC-PC-Port `l10n`](https://github.com/birabittoh/ACGC-PC-Port/tree/l10n) – EUR translation
   loader and tools (`pc/src/pc_msg_eur*`, `app/src/main/python/acport/l10n/`); pyjkernel is GPL-3.0
+- 64-bit port groundwork by Marco Andronaco (birabittoh) and chasem-dev in
+  [birabittoh/ACGC-PC-Port](https://github.com/birabittoh/ACGC-PC-Port); adapted here so that 32-bit builds stay
+  unchanged (64-bit code paths sit behind `__SIZEOF_POINTER__ == 8`)
 - *Animal Crossing HD Texture Pack* – TechieAndroid, Brackenhawk and the AC modding community (downloaded at runtime, not redistributed)
 - SDL2 (zlib), ARM astc-encoder (Apache-2.0), bcdec (MIT/Unlicense), Chaquopy (MIT), jcifs-ng (LGPL-2.1)
 
