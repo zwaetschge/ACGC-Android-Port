@@ -3,11 +3,7 @@ package com.acpc.port;
 import android.content.Context;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 /** Manages the game disc image inside the app's private storage. */
 public final class RomManager {
@@ -55,10 +51,13 @@ public final class RomManager {
     /** Reads the GC disc header: game id (6 bytes), revision (byte 7), magic at 0x1C. */
     public static Info readInfo(File f) {
         Info info = new Info();
-        try (InputStream in = new FileInputStream(f)) {
+        try (java.io.RandomAccessFile in = new java.io.RandomAccessFile(f, "r")) {
             byte[] hdr = new byte[0x20];
-            int got = in.read(hdr);
-            if (got < 0x20) return info;
+            in.readFully(hdr);
+            if (hdr[0] == 'C' && hdr[1] == 'I' && hdr[2] == 'S' && hdr[3] == 'O') {
+                in.seek(0x8000); // CISO: first data block holds the disc header
+                in.readFully(hdr);
+            }
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < 6; i++) {
                 char c = (char) (hdr[i] & 0xFF);
@@ -72,41 +71,5 @@ public final class RomManager {
         } catch (IOException ignored) {
         }
         return info;
-    }
-
-    /** Copies a stream into files/rom/<name>, replacing any previous import. */
-    public static File importRom(Context ctx, InputStream in, String name,
-                                 long totalSize, ProgressListener p) throws IOException {
-        clearRoms(ctx);
-        File target = new File(romDir(ctx), sanitize(name));
-        File tmp = new File(romDir(ctx), "import.tmp");
-        try (OutputStream out = new FileOutputStream(tmp)) {
-            byte[] buf = new byte[1 << 16];
-            long done = 0;
-            int n;
-            while ((n = in.read(buf)) > 0) {
-                out.write(buf, 0, n);
-                done += n;
-                if (p != null) p.onProgress(done, totalSize);
-            }
-        }
-        if (!tmp.renameTo(target)) {
-            tmp.delete();
-            throw new IOException("rename failed");
-        }
-        return target;
-    }
-
-    public interface ProgressListener {
-        void onProgress(long done, long total);
-    }
-
-    private static String sanitize(String name) {
-        String n = name.replaceAll("[^A-Za-z0-9._ ()\\[\\]-]", "_");
-        String lower = n.toLowerCase();
-        for (String ext : ROM_EXTS) {
-            if (lower.endsWith(ext)) return n;
-        }
-        return n + ".iso";
     }
 }

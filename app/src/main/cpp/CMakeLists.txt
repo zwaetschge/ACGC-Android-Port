@@ -14,12 +14,16 @@ set(CMAKE_CXX_EXTENSIONS ON)
 set(DECOMP_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 
 # =============================================================================
-# SDL2 (static, vendored by the gradlew bootstrap)
+# SDL2 (static; source fetched by the fetchThirdParty Gradle task)
 # =============================================================================
 set(SDL_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_STATIC ON CACHE BOOL "" FORCE)
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
-add_subdirectory(SDL2)
+add_subdirectory(third_party/SDL2)
+
+# HD texture pack converter (BC7 -> ASTC) used by the launcher. Added before
+# the decomp-specific compile options below so it builds with clean flags.
+add_subdirectory(texconv)
 
 # =============================================================================
 # Compiler definitions (mirrors pc/CMakeLists.txt, minus PC_ENHANCEMENTS)

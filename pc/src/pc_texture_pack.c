@@ -205,13 +205,38 @@ static xxh_u32 texpack_wc_slot(xxh_u64 data_hash, xxh_u32 fmt, xxh_u32 w, xxh_u3
     return (xxh_u32)(combined & TEXPACK_WC_MASK);
 }
 
+/* Localized replacements live in texture_pack/.../Localisation_<lang>/ (e.g.
+ * Localisation_de-DE, installed by the Android launcher). Returns 1 when the
+ * path belongs to the active language, -1 for another language, 0 otherwise. */
+static int texpack_path_localized(const char* filepath) {
+    const char* tag = strstr(filepath, "Localisation_");
+    const char* lang = pc_settings_get_language();
+    size_t n;
+    if (!tag) return 0;
+    tag += strlen("Localisation_");
+    n = strlen(lang);
+    return (strncmp(tag, lang, n) == 0 && (tag[n] == '/' || tag[n] == '\\')) ? 1 : -1;
+}
+
 static void texpack_insert(xxh_u64 data_hash, xxh_u64 tlut_hash, xxh_u32 fmt,
                            xxh_u32 w, xxh_u32 h, const char* filepath) {
     if (!g_texpack_map) return;
+    int localized = texpack_path_localized(filepath);
+    if (localized < 0) return;
 
     xxh_u32 slot = texpack_slot(data_hash, tlut_hash, fmt, w, h);
     for (int i = 0; i < TEXPACK_MAP_SIZE; i++) {
         xxh_u32 idx = (slot + i) & TEXPACK_MAP_MASK;
+        if (g_texpack_map[idx].occupied && g_texpack_map[idx].data_hash == data_hash &&
+            g_texpack_map[idx].tlut_hash == tlut_hash && g_texpack_map[idx].gc_fmt == fmt &&
+            g_texpack_map[idx].orig_w == w && g_texpack_map[idx].orig_h == h) {
+            /* duplicate key: the active language's version wins */
+            if (localized > 0) {
+                strncpy(g_texpack_map[idx].filepath, filepath, 259);
+                g_texpack_map[idx].filepath[259] = '\0';
+            }
+            break;
+        }
         if (!g_texpack_map[idx].occupied) {
             g_texpack_map[idx].data_hash = data_hash;
             g_texpack_map[idx].tlut_hash = tlut_hash;

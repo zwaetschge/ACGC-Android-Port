@@ -189,11 +189,12 @@ u32 PADRead(PADStatus* status) {
     status[0].substickY = cstickY;
     status[0].err = 0; /* PAD_ERR_NONE */
 
-    /* Android input diagnostic: log every button-state change + SDL focus/space state */
+    /* input diagnostic (--verbose): log every button-state change + SDL focus/space state */
     {
         extern SDL_Window* g_pc_window;
+        extern int g_pc_verbose;
         static u16 s_last_btn = 0xFFFF;
-        if (buttons != s_last_btn) {
+        if (g_pc_verbose && buttons != s_last_btn) {
             printf("[PAD] btn=%04x stick=(%d,%d) focus=%d space=%d bindA=%d\n",
                    buttons, stickX, stickY,
                    g_pc_window ? ((SDL_GetWindowFlags(g_pc_window) & SDL_WINDOW_INPUT_FOCUS) != 0) : -1,

@@ -1,48 +1,50 @@
-import java.io.FileOutputStream
-import java.util.Base64
+import java.net.URI
 
 plugins {
     id("com.android.application")
+    id("com.chaquo.python")
 }
 
-// Game data: compact GAFE01 disc image rebuilt from the user's own dump
-// (tools/build_iso.py). The REST API only transports text, so the binary
-// travels base64-encoded in two parts and is assembled here. This task also
-// removes the assets of the previous embedded layout (orig/).
-val prepareGameAssets by tasks.registering {
+// Third-party native sources are downloaded at build time (not committed):
+//  - SDL2          (zlib)            game window, input, audio, GLES context
+//  - astc-encoder  (Apache-2.0)      HD texture pack conversion on device
+//  - bcdec         (MIT/Unlicense)   BC1/BC3/BC7 decoder for the same
+val thirdParty = file("src/main/cpp/third_party")
+val sdlVersion = "2.30.12"
+val astcencVersion = "5.7.0"
+val bcdecCommit = "80859ed3b7afb1c527a2a99d70c61457bea72d0c"
+
+fun download(url: String, dst: File) {
+    dst.parentFile.mkdirs()
+    URI(url).toURL().openStream().use { input -> dst.outputStream().use { input.copyTo(it) } }
+}
+
+val fetchThirdParty by tasks.registering {
+    outputs.dir(thirdParty)
     doLast {
-        try {
-            val stale = file("src/main/assets/orig")
-            if (stale.exists()) {
-                stale.deleteRecursively()
-                logger.lifecycle("removed stale asset tree ${stale.path}")
-            }
-            val expected = 27_573_708L
-            val dst = file("src/main/assets/rom/GAFE01.iso")
-            if (!dst.exists() || dst.length() != expected) {
-                dst.parentFile.mkdirs()
-                // streaming decode — keeps the daemon heap small
-                val dec = Base64.getMimeDecoder()
-                FileOutputStream(dst).use { out ->
-                    listOf("part1", "part2").forEach { part ->
-                        file("game/b64/GAFE01.iso.b64.$part").inputStream().use { ins ->
-                            dec.wrap(ins).copyTo(out)
-                        }
-                    }
-                }
-                check(dst.length() == expected) {
-                    "GAFE01.iso decoded to ${dst.length()}, expected $expected"
-                }
-                logger.lifecycle("decoded game disc image (${dst.length()} bytes)")
-            }
-        } catch (t: Throwable) {
-            file("prepareGameAssets.error.txt").writeText(t.stackTraceToString())
-            throw t
+        val tmp = layout.buildDirectory.dir("third_party_dl").get().asFile
+        if (!File(thirdParty, "SDL2/CMakeLists.txt").exists()) {
+            val tgz = File(tmp, "sdl2.tar.gz")
+            download("https://github.com/libsdl-org/SDL/releases/download/release-$sdlVersion/SDL2-$sdlVersion.tar.gz", tgz)
+            copy { from(tarTree(resources.gzip(tgz))); into(tmp) }
+            File(tmp, "SDL2-$sdlVersion").renameTo(File(thirdParty, "SDL2"))
         }
+        if (!File(thirdParty, "astc-encoder/Source/astcenc.h").exists()) {
+            val tgz = File(tmp, "astcenc.tar.gz")
+            download("https://github.com/ARM-software/astc-encoder/archive/refs/tags/$astcencVersion.tar.gz", tgz)
+            copy { from(tarTree(resources.gzip(tgz))); into(tmp) }
+            File(tmp, "astc-encoder-$astcencVersion").renameTo(File(thirdParty, "astc-encoder"))
+        }
+        val bcdec = File(thirdParty, "bcdec/bcdec.h")
+        if (!bcdec.exists()) {
+            download("https://raw.githubusercontent.com/iOrange/bcdec/$bcdecCommit/bcdec.h", bcdec)
+        }
+        tmp.deleteRecursively()
     }
 }
 
-tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(prepareGameAssets) }
+tasks.matching { it.name == "preBuild" || it.name.startsWith("configureCMake") }
+    .configureEach { dependsOn(fetchThirdParty) }
 
 android {
     namespace = "com.acpc.port"
@@ -53,8 +55,8 @@ android {
         applicationId = "com.acpc.port"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         ndk {
             // The decomp's emu64 display list interpreter packs host pointers
             // into 32-bit GBI words -> the port is 32-bit only (like upstream).
@@ -92,6 +94,14 @@ android {
         jniLibs {
             useLegacyPackaging = false
         }
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version = "3.11"
+        // pure-Python tools only: no pip packages, no build-time .pyc step
+        pyc { src = false }
     }
 }
 

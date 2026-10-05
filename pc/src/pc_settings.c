@@ -4,11 +4,7 @@
 #include "m_player_lib.h"
 #include "ac_birth_control.h"
 
-#ifdef TARGET_ANDROID
-#define PC_DEFAULT_LANGUAGE "de-DE"
-#else
 #define PC_DEFAULT_LANGUAGE "default"
-#endif
 
 /* EUR translation profile: translations/<lang>/ (msg.bin, *.<lang>.arc, assets/) */
 static char g_pc_language[32] = PC_DEFAULT_LANGUAGE;

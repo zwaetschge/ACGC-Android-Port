@@ -29,7 +29,7 @@ public class GameActivity extends SDLActivity {
 
     @Override
     protected String[] getArguments() {
-        return new String[]{"--verbose"};
+        return new String[0]; // "--verbose" enables the diagnostic logs in files/stdout.log
     }
 
     @Override

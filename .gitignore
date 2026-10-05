@@ -47,3 +47,22 @@ temp/
 include/PR/
 include/gcc/
 include/compiler/gcc/stdlib.h
+
+# Android build
+.gradle/
+local.properties
+app/.cxx/
+app/build/
+*.apk
+*.aab
+# downloaded by the fetchThirdParty Gradle task
+app/src/main/cpp/third_party/
+# game data and generated content never belong in the repo
+*.iso
+*.gcm
+*.ciso
+*.nkit*
+*.tgc
+*.dds
+translations/
+texture_pack/

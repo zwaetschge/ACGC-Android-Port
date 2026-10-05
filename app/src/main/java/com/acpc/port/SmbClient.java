@@ -44,9 +44,9 @@ public final class SmbClient {
 
     private final String host;
 
-    private String normalizeShare(String sharePath) {
+    private static String normalizeShare(String sharePath) {
         String p = sharePath.trim();
-        if (p.isEmpty()) p = "/Roms/ROMs/gc";
+        if (p.isEmpty()) throw new IllegalArgumentException("SMB share path is empty");
         if (!p.startsWith("/")) p = "/" + p;
         if (!p.endsWith("/")) p = p + "/";
         return p;

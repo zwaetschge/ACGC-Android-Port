@@ -8,7 +8,6 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -17,22 +16,30 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Launcher: the user provides every game asset themselves.
+ *  1. USA disc (GAFE01) - required, imported from a file or SMB share (NKit is converted)
+ *  2. HD texture pack   - optional, downloaded from its original source and converted
+ *  3. Translation       - optional, generated from the user's European disc (GAFP01)
+ */
 public class MainActivity extends Activity {
 
-    private static final int REQ_PICK_ROM = 41;
+    private enum Purpose { US_DISC, EU_DISC, HD_ZIP }
 
-    /** Embedded game data: compact GAFE01 disc image, size for validation. */
-    private static final long ISO_SIZE = 27573708L;
+    private static final boolean DE = Locale.getDefault().getLanguage().equals("de");
 
-    private TextView statusTitle;
-    private TextView statusDetail;
-    private Button startButton;
-    private volatile boolean embeddedReady = false;
-    private volatile boolean embeddedPreparing = false;
+    private TextView romStatus, hdStatus, langStatus;
+    private String pendingLang = "de-DE";
+
+    static String tr(String de, String en) {
+        return DE ? de : en;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,298 +49,427 @@ public class MainActivity extends Activity {
         scroll.setFillViewport(true);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(24), dp(40), dp(24), dp(24));
+        root.setPadding(dp(24), dp(32), dp(24), dp(24));
         scroll.addView(root);
         setContentView(scroll);
 
-        TextView title = new TextView(this);
-        title.setText(R.string.app_name);
-        title.setTextSize(30);
+        TextView title = text(getString(R.string.app_name), 30, R.color.ac_text);
         title.setGravity(Gravity.CENTER);
-        title.setTextColor(getColor(R.color.ac_text));
         root.addView(title);
-
-        TextView subtitle = new TextView(this);
-        subtitle.setText("Native Port (ACGC-PC-Port)\nDoubutsu no Mori · GameCube");
-        subtitle.setTextSize(13);
+        TextView subtitle = text(tr("Nativer Port von ACGC-PC-Port · Spieldaten bringst du selbst mit",
+                "Native port of ACGC-PC-Port · bring your own game data"), 13, R.color.ac_text_dim);
         subtitle.setGravity(Gravity.CENTER);
-        subtitle.setTextColor(getColor(R.color.ac_text_dim));
-        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-2, -2);
-        slp.topMargin = dp(4);
-        slp.bottomMargin = dp(28);
-        subtitle.setLayoutParams(slp);
         root.addView(subtitle);
 
-        statusTitle = new TextView(this);
-        statusTitle.setTextSize(17);
-        statusTitle.setPadding(dp(16), dp(14), dp(16), dp(4));
-        root.addView(statusTitle, matchWrap());
-
-        statusDetail = new TextView(this);
-        statusDetail.setTextSize(13);
-        statusDetail.setPadding(dp(16), 0, dp(16), dp(14));
-        statusDetail.setTextColor(getColor(R.color.ac_text_dim));
-        root.addView(statusDetail, matchWrap());
-
-        Button smb = styledButton("ROM vom SMB-Share laden");
-        smb.setOnClickListener(v -> showSmbDialog());
-        LinearLayout.LayoutParams blp = matchWrap();
-        blp.topMargin = dp(20);
-        smb.setLayoutParams(blp);
-        root.addView(smb);
-
-        Button pick = styledButton("ROM-Datei wählen (.iso / .gcm / .ciso)");
-        pick.setOnClickListener(v -> {
-            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            i.addCategory(Intent.CATEGORY_OPENABLE);
-            i.setType("*/*");
-            i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
-                    "application/x-iso9660-image", "application/octet-stream"});
-            startActivityForResult(i, REQ_PICK_ROM);
-        });
-        LinearLayout.LayoutParams plp = matchWrap();
-        plp.topMargin = dp(10);
-        pick.setLayoutParams(plp);
-        root.addView(pick);
-
-        startButton = styledButton("Spiel starten");
-        startButton.setTextSize(19);
-        startButton.setOnClickListener(v -> {
+        Button start = button(tr("Spiel starten", "Start game"));
+        start.setTextSize(19);
+        start.setOnClickListener(v -> {
             File rom = RomManager.findRom(this);
-            if (rom == null && !embeddedReady) {
-                toast(embeddedPreparing
-                        ? "Spieldaten werden noch vorbereitet…"
-                        : "Keine ROM gefunden – erst importieren.");
+            if (rom == null || !RomManager.readInfo(rom).isRequired()) {
+                toast(tr("Zuerst die US-Disc (GAFE01) importieren.", "Import the USA disc (GAFE01) first."));
                 return;
             }
             startActivity(new Intent(this, GameActivity.class));
         });
-        LinearLayout.LayoutParams stlp = matchWrap();
-        stlp.topMargin = dp(34);
-        startButton.setLayoutParams(stlp);
-        root.addView(startButton);
+        root.addView(start, margins(dp(20), 0));
 
-        TextView hint = new TextView(this);
-        hint.setText("Das Disc-Image der US-Version (GAFE01 Rev 0) ist in der App eingebettet " +
-                "und wird beim ersten Start entpackt. Optional kann zusätzlich ein vollständiges " +
-                "Disc-Image (.iso/.gcm/.ciso) importiert werden.\n\nSteuerung: Gamepad (Handheld) – " +
-                "Select/Back = Pause-Menü.");
-        hint.setTextSize(12);
-        hint.setTextColor(getColor(R.color.ac_text_dim));
-        LinearLayout.LayoutParams hlp = matchWrap();
-        hlp.topMargin = dp(30);
-        hint.setLayoutParams(hlp);
-        root.addView(hint);
+        // 1. game data
+        root.addView(header(tr("1 · Spieldaten (Pflicht)", "1 · Game data (required)")));
+        romStatus = text("", 13, R.color.ac_text_dim);
+        root.addView(romStatus);
+        root.addView(row(
+                button(tr("Datei wählen", "Choose file"), () -> pickFile(Purpose.US_DISC)),
+                button(tr("Von SMB-Share", "From SMB share"), () -> smbDialog(Purpose.US_DISC))));
+        root.addView(note(tr("Animal Crossing USA (GAFE01) als .iso, .gcm, .ciso oder NKit (.nkit.iso).",
+                "Animal Crossing USA (GAFE01) as .iso, .gcm, .ciso or NKit (.nkit.iso).")));
 
-        refreshStatus();
-        ensureEmbeddedData();
+        // 2. HD textures
+        root.addView(header(tr("2 · HD-Texturen (optional)", "2 · HD textures (optional)")));
+        hdStatus = text("", 13, R.color.ac_text_dim);
+        root.addView(hdStatus);
+        root.addView(row(
+                button(tr("Herunterladen & installieren", "Download & install"), this::confirmHdDownload),
+                button(tr("ZIP wählen", "Choose ZIP"), () -> pickFile(Purpose.HD_ZIP))));
+        root.addView(row(button(tr("HD-Texturen entfernen", "Remove HD textures"), () -> {
+            HdPack.remove(this);
+            refresh();
+        })));
+        root.addView(note(tr("„Animal Crossing HD Texture Pack“ (" + HdPack.NAME + ") von TechieAndroid, Brackenhawk "
+                + "und der AC-Modding-Community. Wird von der Originalquelle geladen und auf dem Gerät "
+                + "umgewandelt (einmalig einige Minuten, ca. 1,5 GB).",
+                "\"Animal Crossing HD Texture Pack\" (" + HdPack.NAME + ") by TechieAndroid, Brackenhawk and the "
+                + "AC modding community. Downloaded from its original source and converted on the device "
+                + "(one-time, a few minutes, about 1.5 GB).")));
+
+        // 3. language
+        root.addView(header(tr("3 · Sprache (optional)", "3 · Language (optional)")));
+        langStatus = text("", 13, R.color.ac_text_dim);
+        root.addView(langStatus);
+        root.addView(row(
+                button(tr("Sprache wählen", "Choose language"), this::chooseLanguage),
+                button(tr("Übersetzung erstellen", "Create translation"), this::createTranslation)));
+        root.addView(note(tr("Übersetzungen werden aus deiner europäischen Disc (GAFP01) erzeugt; "
+                + "die Texte werden nicht mit der App verteilt. Basierend auf dem l10n-Branch von birabittoh.",
+                "Translations are generated from your European disc (GAFP01); no game text ships with "
+                + "the app. Based on birabittoh's l10n branch.")));
+
+        root.addView(note(tr("Steuerung: Gamepad, Tastatur oder Touch-Overlay. Select/Back = Pause-Menü.",
+                "Controls: gamepad, keyboard or touch overlay. Select/Back = pause menu.")));
+        refresh();
     }
 
-    /* ---------- embedded game data ---------- */
-
-    private File embeddedIso() {
-        // same dir the native disc scanner searches — with the deterministic
-        // GAFE01.iso preference patched into pc_disc.c this always wins
-        return new File(getFilesDir(), "rom/GAFE01.iso");
+    @Override
+    protected void onResume() {
+        super.onResume();
+        refresh();
     }
 
-    private boolean embeddedValid() {
-        return embeddedIso().length() == ISO_SIZE;
-    }
-
-    /** Copies the embedded GAFE01 disc image out of the APK on first launch. */
-    private void ensureEmbeddedData() {
-        if (embeddedValid()) {
-            embeddedReady = true;
-            refreshStatus();
-            return;
-        }
-        if (embeddedPreparing) return;
-        embeddedPreparing = true;
-        new Thread(() -> {
-            try {
-                deleteRecursive(new File(getFilesDir(), "orig")); // old layout
-                copyAsset("rom/GAFE01.iso", embeddedIso(), ISO_SIZE);
-                embeddedReady = embeddedValid();
-            } catch (Exception e) {
-                runOnUiThread(() -> toast("Spieldaten: " + e));
-            } finally {
-                embeddedPreparing = false;
-                runOnUiThread(this::refreshStatus);
-            }
-        }, "embedded-assets").start();
-    }
-
-    private static void deleteRecursive(File f) {
-        File[] children = f.listFiles();
-        if (children != null) {
-            for (File c : children) deleteRecursive(c);
-        }
-        f.delete();
-    }
-
-    private void copyAsset(String assetPath, File dst, long expect) throws Exception {
-        if (dst.exists() && dst.length() == expect) return;
-        dst.getParentFile().mkdirs();
-        File tmp = new File(dst.getParentFile(), dst.getName() + ".tmp");
-        long done = 0;
-        try (InputStream in = getAssets().open(assetPath);
-             java.io.OutputStream out = new java.io.FileOutputStream(tmp)) {
-            byte[] buf = new byte[1 << 16];
-            int n;
-            while ((n = in.read(buf)) > 0) {
-                out.write(buf, 0, n);
-                done += n;
-                final long d = done;
-                if (d % (1 << 20) < (1 << 16)) {
-                    runOnUiThread(() -> {
-                        if (!embeddedReady) refreshStatus();
-                    });
-                }
-            }
-        }
-        if (done != expect) throw new IllegalStateException(assetPath + ": " + done + " != " + expect);
-        if (!tmp.renameTo(dst)) throw new IllegalStateException("rename failed: " + dst);
-    }
-
-    private LinearLayout.LayoutParams matchWrap() {
-        return new LinearLayout.LayoutParams(-1, -2);
-    }
-
-    private Button styledButton(String text) {
-        Button b = new Button(this, null, 0, android.R.style.Widget_Material_Button);
-        b.setText(text);
-        b.setAllCaps(false);
-        return b;
-    }
-
-    private int dp(int v) {
-        return Math.round(v * getResources().getDisplayMetrics().density);
-    }
-
-    private void refreshStatus() {
+    private void refresh() {
         File rom = RomManager.findRom(this);
         if (rom == null) {
-            if (embeddedReady) {
-                statusTitle.setTextColor(getColor(R.color.ac_primary));
-                statusTitle.setText("Disc-Image eingebettet ✓");
-                statusDetail.setText("GAFE01 (USA, Rev 0) – alle Spieldaten vorhanden, bereit zum Start.");
-            } else if (embeddedPreparing) {
-                statusTitle.setTextColor(getColor(R.color.ac_text_dim));
-                statusTitle.setText("Spieldaten werden vorbereitet…");
-                statusDetail.setText("Disc-Image wird aus der App entpackt.");
-            } else {
-                statusTitle.setTextColor(getColor(R.color.ac_error));
-                statusTitle.setText("Keine ROM vorhanden");
-                statusDetail.setText("Import über SMB-Share oder Dateiauswahl.");
-            }
-            startButton.setEnabled(true);
-            return;
-        }
-        RomManager.Info info = RomManager.readInfo(rom);
-        if (info.isRequired()) {
-            statusTitle.setTextColor(getColor(R.color.ac_primary));
-            statusTitle.setText(String.format(Locale.US, "ROM bereit: %s Rev %d ✓",
-                    info.id, info.revision));
+            romStatus.setText(tr("✗ Keine Disc importiert", "✗ No disc imported"));
         } else {
-            statusTitle.setTextColor(getColor(R.color.ac_error));
-            statusTitle.setText(String.format(Locale.US, "Falsche ROM: %s Rev %d",
-                    info.id, info.revision));
+            RomManager.Info info = RomManager.readInfo(rom);
+            romStatus.setText(info.isRequired()
+                    ? String.format(Locale.US, "✓ %s Rev %d · %s", info.id, info.revision, rom.getName())
+                    : String.format(Locale.US, tr("✗ Falsche Disc: %s (GAFE01 nötig)", "✗ Wrong disc: %s (GAFE01 needed)"), info.id));
         }
-        statusDetail.setText(String.format(Locale.US, "%s · %.2f GB\n%s",
-                rom.getName(), rom.length() / 1073741824.0,
-                info.isRequired()
-                        ? "US-Version erkannt – bereit zum Start."
-                        : "Dieser Port benötigt GAFE01 (USA, Rev 0). Gefundene Version wird " +
-                          "voraussichtlich nicht funktionieren."));
-        startButton.setEnabled(true);
+        String hd = HdPack.installed(this);
+        hdStatus.setText(hd != null ? "✓ " + hd : tr("– nicht installiert", "– not installed"));
+        String lang = Tools.getLanguage(this);
+        StringBuilder sb = new StringBuilder();
+        for (String[] l : Tools.installedLanguages(this)) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(l[1]);
+            if (l[0].equals(lang)) sb.append(" ✓");
+        }
+        langStatus.setText(tr("Verfügbar: ", "Available: ") + sb);
     }
 
-    /* ---------- SAF import ---------- */
+    /* ---------- HD textures ---------- */
+
+    private void confirmHdDownload() {
+        new AlertDialog.Builder(this)
+                .setTitle(HdPack.NAME)
+                .setMessage(tr("Lädt ca. 146 MB von Google Drive (Link aus dem Dolphin-Forum-Thread des Packs) "
+                        + "und wandelt die Texturen für dein Gerät um. Fortfahren?",
+                        "Downloads about 146 MB from Google Drive (link from the pack's Dolphin forum thread) "
+                        + "and converts the textures for this device. Continue?"))
+                .setPositiveButton("OK", (d, w) -> runTask(tr("HD-Texturen", "HD textures"), pd -> {
+                    File zip = HdPack.download(this, (stage, done, total) -> progress(pd,
+                            tr("Download", "Download") + " " + (done >> 20) + " MB", done, total));
+                    installHd(pd, zip);
+                }))
+                .setNegativeButton(tr("Abbrechen", "Cancel"), null)
+                .show();
+    }
+
+    private void installHd(ProgressDialog pd, File zip) throws Exception {
+        try {
+            int n = HdPack.install(this, zip, (stage, done, total) -> progress(pd,
+                    tr("Umwandeln ", "Converting ") + done + " / " + total, done, total));
+            runOnUiThread(() -> toast(n + tr(" Texturen installiert", " textures installed")));
+        } finally {
+            zip.delete();
+        }
+    }
+
+    /* ---------- language ---------- */
+
+    private void chooseLanguage() {
+        List<String[]> langs = Tools.installedLanguages(this);
+        String[] names = new String[langs.size()];
+        for (int i = 0; i < names.length; i++) names[i] = langs.get(i)[1];
+        new AlertDialog.Builder(this)
+                .setTitle(tr("Sprache", "Language"))
+                .setItems(names, (d, i) -> {
+                    try {
+                        Tools.setLanguage(this, langs.get(i)[0]);
+                    } catch (Exception e) {
+                        error(e);
+                    }
+                    refresh();
+                })
+                .show();
+    }
+
+    private void createTranslation() {
+        if (RomManager.findRom(this) == null) {
+            toast(tr("Zuerst die US-Disc importieren.", "Import the USA disc first."));
+            return;
+        }
+        String[][] all = Tools.LANGUAGES;
+        String[] names = new String[all.length - 1];
+        for (int i = 1; i < all.length; i++) names[i - 1] = all[i][1];
+        new AlertDialog.Builder(this)
+                .setTitle(tr("Welche Sprache?", "Which language?"))
+                .setItems(names, (d, i) -> {
+                    pendingLang = all[i + 1][0];
+                    new AlertDialog.Builder(this)
+                            .setTitle(tr("Europäische Disc (GAFP01)", "European disc (GAFP01)"))
+                            .setItems(new String[]{tr("Datei wählen", "Choose file"), tr("Von SMB-Share", "From SMB share")},
+                                    (d2, j) -> {
+                                        if (j == 0) pickFile(Purpose.EU_DISC);
+                                        else smbDialog(Purpose.EU_DISC);
+                                    })
+                            .show();
+                })
+                .show();
+    }
+
+    /* ---------- file sources ---------- */
+
+    private File tempFor(Purpose p) {
+        return new File(getCacheDir(), "import-" + p.name().toLowerCase(Locale.US) + ".bin");
+    }
+
+    private void pickFile(Purpose p) {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("*/*");
+        startActivityForResult(i, 100 + p.ordinal());
+    }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQ_PICK_ROM || resultCode != RESULT_OK || data == null) return;
+        int idx = requestCode - 100;
+        if (idx < 0 || idx >= Purpose.values().length || resultCode != RESULT_OK || data == null) return;
         Uri uri = data.getData();
         if (uri == null) return;
-        importFromStream(uri);
-    }
-
-    private void importFromStream(Uri uri) {
-        ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("ROM wird importiert…");
-        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        pd.setCancelable(false);
-        pd.setMax(1000);
-        pd.show();
-        new Thread(() -> {
+        Purpose p = Purpose.values()[idx];
+        runTask(tr("Import", "Import"), pd -> {
+            File tmp = tempFor(p);
             try (InputStream in = getContentResolver().openInputStream(uri)) {
-                if (in == null) throw new IllegalStateException("Stream null");
-                String name = uri.getLastPathSegment();
-                if (name == null) name = "animal-crossing.iso";
-                int slash = name.lastIndexOf('/');
-                if (slash >= 0) name = name.substring(slash + 1);
-                RomManager.importRom(this, in, name, 0,
-                        (done, total) -> runOnUiThread(() -> {
-                            if (total > 0) pd.setProgress((int) (done * 1000 / total));
-                            else pd.setMessage("ROM wird importiert… " + (done >> 20) + " MB");
-                        }));
-                runOnUiThread(() -> {
-                    pd.dismiss();
-                    toast("Import abgeschlossen");
-                    refreshStatus();
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    pd.dismiss();
-                    new AlertDialog.Builder(this)
-                            .setTitle("Import fehlgeschlagen")
-                            .setMessage(String.valueOf(e))
-                            .setPositiveButton("OK", null)
-                            .show();
-                });
+                if (in == null) throw new IllegalStateException("no stream");
+                copy(in, tmp, -1, pd);
             }
-        }, "rom-import").start();
+            process(p, tmp, pd);
+        });
     }
 
-    /* ---------- SMB import ---------- */
+    /** Runs after the source was copied into the cache. */
+    private void process(Purpose p, File tmp, ProgressDialog pd) throws Exception {
+        try {
+            switch (p) {
+                case US_DISC: {
+                    String info = Tools.discInfo(this, tmp);
+                    if (!info.startsWith("GAFE01")) {
+                        throw new IllegalArgumentException(tr("Das ist nicht die US-Disc (GAFE01): ",
+                                "This is not the USA disc (GAFE01): ") + info);
+                    }
+                    Tools.importUsDisc(this, tmp, msg -> message(pd, msg));
+                    break;
+                }
+                case EU_DISC: {
+                    File rom = RomManager.findRom(this);
+                    Tools.generateTranslation(this, rom, tmp, pendingLang, msg -> message(pd, msg));
+                    Tools.setLanguage(this, pendingLang);
+                    break;
+                }
+                case HD_ZIP:
+                    installHd(pd, tmp);
+                    break;
+            }
+        } finally {
+            tmp.delete();
+        }
+    }
 
-    private void showSmbDialog() {
+    private void smbDialog(Purpose p) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        int pad = dp(18);
-        box.setPadding(pad, dp(8), pad, 0);
-
-        final EditText host = labeledField(box, "Server (Host / IP)", loadPref("host", ""));
-        final EditText user = labeledField(box, "Benutzer (leer = Gast)", loadPref("user", ""));
-        final EditText pass = labeledField(box, "Passwort", loadPref("pass", ""));
+        box.setPadding(dp(18), dp(8), dp(18), 0);
+        EditText host = field(box, tr("Server (Host / IP)", "Server (host / IP)"), pref("host"));
+        EditText user = field(box, tr("Benutzer (leer = Gast)", "User (empty = guest)"), pref("user"));
+        EditText pass = field(box, tr("Passwort", "Password"), pref("pass"));
         pass.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        final EditText share = labeledField(box, "Share-Pfad", loadPref("share", "/Roms/ROMs/gc"));
-
+        EditText share = field(box, tr("Share-Pfad (z. B. /Games/gc)", "Share path (e.g. /Games/gc)"), pref("share"));
         new AlertDialog.Builder(this)
-                .setTitle("ROM vom SMB-Share laden")
+                .setTitle("SMB")
                 .setView(box)
-                .setPositiveButton("Verbinden", (d, w) -> {
+                .setPositiveButton(tr("Verbinden", "Connect"), (d, w) -> {
                     savePref("host", host.getText().toString().trim());
                     savePref("user", user.getText().toString().trim());
                     savePref("pass", pass.getText().toString());
                     savePref("share", share.getText().toString().trim());
-                    connectAndList(host.getText().toString().trim(),
-                            user.getText().toString().trim(),
-                            pass.getText().toString(),
-                            share.getText().toString().trim());
+                    smbList(p);
                 })
-                .setNegativeButton("Abbrechen", null)
+                .setNegativeButton(tr("Abbrechen", "Cancel"), null)
                 .show();
     }
 
-    private EditText labeledField(LinearLayout box, String label, String initial) {
-        TextView tv = new TextView(this);
-        tv.setText(label);
-        tv.setTextSize(12);
-        tv.setTextColor(getColor(R.color.ac_text_dim));
-        box.addView(tv);
+    private void smbList(Purpose p) {
+        runTask("SMB", pd -> {
+            SmbClient client = new SmbClient(pref("host"), pref("user"), pref("pass"));
+            List<SmbClient.Entry> entries = client.listRomFiles(pref("share"));
+            runOnUiThread(() -> {
+                if (entries.isEmpty()) {
+                    toast(tr("Keine Disc-Images gefunden", "No disc images found"));
+                    return;
+                }
+                String[] names = new String[entries.size()];
+                for (int i = 0; i < names.length; i++) {
+                    names[i] = String.format(Locale.US, "%s  (%.2f GB)", entries.get(i).name,
+                            entries.get(i).size / 1073741824.0);
+                }
+                new AlertDialog.Builder(this)
+                        .setItems(names, (d, i) -> runTask(tr("Import", "Import"), pd2 -> {
+                            SmbClient.Entry e = entries.get(i);
+                            File tmp = tempFor(p);
+                            try (InputStream in = client.open(pref("share"), e.name)) {
+                                copy(in, tmp, e.size, pd2);
+                            }
+                            process(p, tmp, pd2);
+                        }))
+                        .setNegativeButton(tr("Abbrechen", "Cancel"), null)
+                        .show();
+            });
+        });
+    }
+
+    /* ---------- task plumbing ---------- */
+
+    private interface Task {
+        void run(ProgressDialog pd) throws Exception;
+    }
+
+    private void runTask(String title, Task task) {
+        ProgressDialog pd = new ProgressDialog(this);
+        pd.setTitle(title);
+        pd.setMessage("…");
+        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        pd.setIndeterminate(true);
+        pd.setCancelable(false);
+        pd.setMax(1000);
+        pd.show();
+        new Thread(() -> {
+            try {
+                task.run(pd);
+                runOnUiThread(() -> {
+                    pd.dismiss();
+                    refresh();
+                });
+            } catch (Throwable e) {
+                runOnUiThread(() -> {
+                    pd.dismiss();
+                    error(e);
+                    refresh();
+                });
+            }
+        }, "launcher-task").start();
+    }
+
+    private void copy(InputStream in, File dst, long total, ProgressDialog pd) throws Exception {
+        try (OutputStream out = new FileOutputStream(dst)) {
+            byte[] buf = new byte[1 << 16];
+            long done = 0;
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+                done += n;
+                if ((done & 0xFFFFF) < (1 << 16)) {
+                    progress(pd, tr("Kopiere ", "Copying ") + (done >> 20) + " MB", done, total);
+                }
+            }
+        }
+    }
+
+    private void progress(ProgressDialog pd, String msg, long done, long total) {
+        runOnUiThread(() -> {
+            pd.setMessage(msg);
+            if (total > 0) {
+                pd.setIndeterminate(false);
+                pd.setProgress((int) (done * 1000 / total));
+            }
+        });
+    }
+
+    private void message(ProgressDialog pd, String msg) {
+        runOnUiThread(() -> {
+            pd.setIndeterminate(true);
+            pd.setMessage(msg);
+        });
+    }
+
+    private void error(Throwable e) {
+        String msg = String.valueOf(e.getMessage() != null ? e.getMessage() : e);
+        if (e instanceof jcifs.CIFSException) msg = describeSmb(e) + "\n\n(" + msg + ")";
+        new AlertDialog.Builder(this)
+                .setTitle(tr("Fehler", "Error"))
+                .setMessage(msg)
+                .setPositiveButton("OK", null)
+                .show();
+    }
+
+    private static String describeSmb(Throwable e) {
+        String raw = String.valueOf(e);
+        if (e instanceof jcifs.smb.SmbAuthException || raw.contains("Access is denied")
+                || raw.contains("LOGON_FAILURE") || raw.contains("ACCESS_DENIED")) {
+            return tr("Zugriff verweigert – Benutzer und Passwort prüfen (Gastzugriff ist auf dem Server evtl. aus).",
+                    "Access denied – check user and password (the server may not allow guest access).");
+        }
+        if (raw.contains("UnknownHost")) return tr("Server nicht gefunden – Host/IP prüfen.", "Server not found – check host/IP.");
+        return tr("Verbindung fehlgeschlagen – Host/IP und SMB-Port 445 prüfen.",
+                "Connection failed – check host/IP and SMB port 445.");
+    }
+
+    /* ---------- UI helpers ---------- */
+
+    private TextView text(String s, int size, int color) {
+        TextView t = new TextView(this);
+        t.setText(s);
+        t.setTextSize(size);
+        t.setTextColor(getColor(color));
+        return t;
+    }
+
+    private TextView header(String s) {
+        TextView t = text(s, 17, R.color.ac_primary);
+        t.setLayoutParams(margins(dp(26), dp(4)));
+        return t;
+    }
+
+    private TextView note(String s) {
+        TextView t = text(s, 12, R.color.ac_text_dim);
+        t.setLayoutParams(margins(dp(6), 0));
+        return t;
+    }
+
+    private Button button(String label) {
+        Button b = new Button(this, null, 0, android.R.style.Widget_Material_Button);
+        b.setText(label);
+        b.setAllCaps(false);
+        return b;
+    }
+
+    private Button button(String label, Runnable action) {
+        Button b = button(label);
+        b.setOnClickListener(v -> action.run());
+        return b;
+    }
+
+    private LinearLayout row(Button... buttons) {
+        LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        for (Button b : buttons) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+            lp.rightMargin = dp(6);
+            r.addView(b, lp);
+        }
+        r.setLayoutParams(margins(dp(6), 0));
+        return r;
+    }
+
+    private LinearLayout.LayoutParams margins(int top, int bottom) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.topMargin = top;
+        lp.bottomMargin = bottom;
+        return lp;
+    }
+
+    private EditText field(LinearLayout box, String label, String initial) {
+        box.addView(text(label, 12, R.color.ac_text_dim));
         EditText et = new EditText(this);
         et.setText(initial);
         et.setSingleLine();
@@ -341,114 +477,19 @@ public class MainActivity extends Activity {
         return et;
     }
 
-    private void connectAndList(String host, String user, String pass, String share) {
-        ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("Verbinde mit " + host + " …");
-        pd.setCancelable(false);
-        pd.show();
-        new Thread(() -> {
-            try {
-                SmbClient client = new SmbClient(host, user, pass);
-                List<SmbClient.Entry> entries = client.listRomFiles(share);
-                runOnUiThread(() -> {
-                    pd.dismiss();
-                    if (entries.isEmpty()) {
-                        toast("Keine ROM-Dateien gefunden");
-                        return;
-                    }
-                    String[] names = new String[entries.size()];
-                    for (int i = 0; i < entries.size(); i++) {
-                        SmbClient.Entry e = entries.get(i);
-                        names[i] = String.format(Locale.US, "%s  (%.2f GB)",
-                                e.name, e.size / 1073741824.0);
-                    }
-                    new AlertDialog.Builder(this)
-                            .setTitle("ROM auswählen")
-                            .setItems(names, (d, idx) -> downloadSmb(client, share,
-                                    entries.get(idx), host, user, pass))
-                            .setNegativeButton("Abbrechen", null)
-                            .show();
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    pd.dismiss();
-                    new AlertDialog.Builder(this)
-                            .setTitle("SMB-Verbindung fehlgeschlagen")
-                            .setMessage(describeSmbError(e))
-                            .setPositiveButton("OK", null)
-                            .show();
-                });
-            }
-        }, "smb-list").start();
+    private int dp(int v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
     }
-
-    private void downloadSmb(SmbClient client, String share, SmbClient.Entry entry,
-                             String host, String user, String pass) {
-        ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("Lade " + entry.name + " …");
-        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        pd.setCancelable(false);
-        pd.setMax(1000);
-        pd.show();
-        new Thread(() -> {
-            try (InputStream in = client.open(share, entry.name)) {
-                RomManager.importRom(this, in, entry.name, entry.size,
-                        (done, total) -> runOnUiThread(() -> {
-                            if (total > 0) pd.setProgress((int) (done * 1000 / total));
-                        }));
-                runOnUiThread(() -> {
-                    pd.dismiss();
-                    toast("Import abgeschlossen");
-                    refreshStatus();
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    pd.dismiss();
-                    new AlertDialog.Builder(this)
-                            .setTitle("Download fehlgeschlagen")
-                            .setMessage(describeSmbError(e))
-                            .setPositiveButton("OK", null)
-                            .show();
-                });
-            }
-        }, "smb-download").start();
-    }
-
-    /* ---------- prefs ---------- */
-
-    /** Maps jcifs-ng exceptions to actionable German text (raw exception appended for debugging). */
-    private static String describeSmbError(Exception e) {
-        String raw = String.valueOf(e);
-        boolean auth = e instanceof jcifs.smb.SmbAuthException
-                || raw.contains("Access is denied")
-                || raw.contains("Logon failure")
-                || raw.contains("NT_STATUS_ACCESS_DENIED")
-                || raw.contains("NT_STATUS_LOGON_FAILURE");
-        if (auth) {
-            return "Zugriff verweigert – Benutzername und Passwort prüfen.\n"
-                    + "Gast-Zugriff (leerer Benutzer) ist auf dem Server deaktiviert.\n\n"
-                    + "(" + raw + ")";
-        }
-        if (raw.contains("UnknownHost")) {
-            return "Server nicht gefunden – Host/IP prüfen.\n\n(" + raw + ")";
-        }
-        if (raw.contains("timed out") || raw.contains("Timeout") || raw.contains("refused")
-                || raw.contains("Failed to connect") || raw.contains("No route")) {
-            return "Verbindung fehlgeschlagen – Host/IP prüfen (SMB-Port 445).\n\n(" + raw + ")";
-        }
-        return raw;
-    }
-
 
     private void savePref(String k, String v) {
         getSharedPreferences("smb", MODE_PRIVATE).edit().putString(k, v).apply();
     }
 
-    private String loadPref(String k, String def) {
-        return getSharedPreferences("smb", MODE_PRIVATE).getString(k, def);
+    private String pref(String k) {
+        return getSharedPreferences("smb", MODE_PRIVATE).getString(k, "");
     }
 
     private void toast(String msg) {
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
     }
 }

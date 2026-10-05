@@ -411,7 +411,8 @@ extern void padmgr_RequestPadData(pad_t* pad, int flag) {
 #endif
     padmgr_RequestPadData_NonLock(pad, flag);
 #ifdef TARGET_PC
-    if (flag && pad != NULL && pad[0].on.button != 0) {
+    extern int g_pc_verbose;
+    if (g_pc_verbose && flag && pad != NULL && pad[0].on.button != 0) {
         printf("[PAD2] gamepad on=%04x now=%04x last=%04x\n",
                pad[0].on.button, pad[0].now.button, pad[0].last.button);
     }
