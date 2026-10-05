@@ -113,8 +113,17 @@ public class MainActivity extends Activity {
                 "Translations are generated from your European disc (GAFP01); no game text ships with "
                 + "the app. Based on birabittoh's l10n branch.")));
 
-        root.addView(note(tr("Steuerung: Gamepad, Tastatur oder Touch-Overlay. Select/Back = Pause-Menü.",
-                "Controls: gamepad, keyboard or touch overlay. Select/Back = pause menu.")));
+        root.addView(header(tr("Steuerung", "Controls")));
+        Button overlay = button("");
+        overlay.setOnClickListener(v -> {
+            GameActivity.setTouchOverlayEnabled(this, !GameActivity.touchOverlayEnabled(this));
+            overlay.setText(overlayLabel());
+        });
+        overlay.setText(overlayLabel());
+        root.addView(row(overlay));
+        root.addView(note(tr("Gamepad, Tastatur oder Touch-Overlay (blendet sich bei Controller-Eingaben aus). "
+                + "Select/Back = Pause-Menü.",
+                "Gamepad, keyboard or touch overlay (hides while a controller is used). Select/Back = pause menu.")));
         refresh();
     }
 
@@ -122,6 +131,12 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refresh();
+    }
+
+    private String overlayLabel() {
+        return GameActivity.touchOverlayEnabled(this)
+                ? tr("Touch-Overlay: an", "Touch overlay: on")
+                : tr("Touch-Overlay: aus", "Touch overlay: off");
     }
 
     private void refresh() {

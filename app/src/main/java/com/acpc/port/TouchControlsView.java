@@ -84,10 +84,10 @@ public class TouchControlsView extends View {
         stickBaseX = stickKnobX = stickHomeX;
         stickBaseY = stickKnobY = stickHomeY;
 
-        float ax = w - 17 * u, ay = h - 50 * u, br = 7.5f * u; // above the clock HUD
+        float ax = w - 19 * u, ay = h - 50 * u, br = 7.5f * u; // above the clock HUD
         place(BTN_A, ax, ay, br);
         place(BTN_B, ax - 13 * u, ay + 7 * u, br * 0.7f);
-        place(BTN_X, ax + 10.5f * u, ay - 6 * u, br * 0.65f);
+        place(BTN_X, ax + 12 * u, ay - 7 * u, br * 0.65f); // clear of A
         place(BTN_Y, ax - 5 * u, ay - 13 * u, br * 0.65f);
 
         cRadius = 7 * u;

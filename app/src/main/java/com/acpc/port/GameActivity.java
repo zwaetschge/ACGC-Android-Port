@@ -37,11 +37,19 @@ public class GameActivity extends SDLActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         extractAssetsOnce();
         super.onCreate(savedInstanceState);
-        if (mLayout != null) {
+        if (mLayout != null && touchOverlayEnabled(this)) {
             touchControls = new TouchControlsView(this);
             mLayout.addView(touchControls, new ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
+    }
+
+    static boolean touchOverlayEnabled(android.content.Context ctx) {
+        return ctx.getSharedPreferences("controls", MODE_PRIVATE).getBoolean("touch_overlay", true);
+    }
+
+    static void setTouchOverlayEnabled(android.content.Context ctx, boolean on) {
+        ctx.getSharedPreferences("controls", MODE_PRIVATE).edit().putBoolean("touch_overlay", on).apply();
     }
 
     /** A physical controller or keyboard hides the overlay; touching the screen shows it again. */
