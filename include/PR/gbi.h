@@ -45,15 +45,18 @@
 #if UINTPTR_MAX > 0xFFFFFFFFu
 #define _GBI_SET_W1(g, val) ((g)->words.w1 = (uintptr_t)(val))
 #define _GBI_SET_W1_RAW(g, val) ((g)->words.w1 = (uintptr_t)(val))
+#define _GBI_RUNTIME_PTR(s) (uintptr_t)(s)
 #else
 #define _GBI_SET_W1(g, val) ((g)->words.w1 = (unsigned int)(val))
 #define _GBI_SET_W1_RAW(g, val) ((g)->words.w1 = (unsigned int)(val))
+#define _GBI_RUNTIME_PTR(s) (unsigned int)(uintptr_t)(s)
 #endif
 #else
 #ifndef _GBI_STATIC_PTR
 #define _GBI_STATIC_PTR(s) (unsigned int)(s)
 #define _GBI_SET_W1(g, val) ((g)->words.w1 = (unsigned int)(val))
 #define _GBI_SET_W1_RAW(g, val) ((g)->words.w1 = (unsigned int)(val))
+#define _GBI_RUNTIME_PTR(s) (unsigned int)(uintptr_t)(s)
 #endif
 #ifndef _GBI_RUNTIME_PTR
 #define _GBI_RUNTIME_PTR(s) (unsigned int)(s)
