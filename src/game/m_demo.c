@@ -419,8 +419,19 @@ static int set_talk_default() {
 static int wait_talk_start() {
     PLAYER_ACTOR* player = GET_PLAYER_ACTOR_NOW();
 
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; static int s_wts = 0;
+      if (g_pc_verbose && (s_wts++ % 120) == 0) {
+        printf("[DEMO] wts: type=%d main=%d spk=%d lsn=%d chg=%d rprio=%d ridx=%d rchg=%d\n",
+               demo->current.type, mPlib_get_player_actor_main_index(gamePT),
+               mDemo_Check_SpeakerAble(), mDemo_Check_ListenAble(), demo->data.talk.change_player,
+               player->requested_main_index_priority, player->requested_main_index,
+               player->requested_main_index_changed);
+      } }
+#endif
+
     if (demo->data.talk.change_player) {
-        if (mPlib_get_player_actor_main_index(gamePT) != 65 &&
+        if (mPlib_get_player_actor_main_index(gamePT) != mPlayer_INDEX_TALK && /* PC port: literal 65 assumed GC enum order; port enum has TALK=58 */
             mPlib_request_main_talk_type1(gamePT, demo->current.actor, demo->data.talk.turn, FALSE) == FALSE) {
             return FALSE;
         }
@@ -850,6 +861,10 @@ static int choice_demo() {
         memcpy(&demo->current, &demo->request[request_idx], sizeof(mDemo_Request_c));
         (*default_set_func[demo->current.type])();
 
+#ifdef TARGET_PC
+        { extern int g_pc_verbose; if (g_pc_verbose) printf("[DEMO] choice: type=%d actor=%d\n", demo->current.type, demo->current.actor != NULL); }
+#endif
+
         if (demo->current.proc != NULL) {
             (*demo->current.proc)(demo->current.actor);
         }
@@ -926,6 +941,14 @@ static void run_demo() {
 
 static void main_proc() {
     PLAYER_ACTOR* player = GET_PLAYER_ACTOR_NOW();
+
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; static int s_mp = 0;
+      if (g_pc_verbose && (s_mp++ % 120) == 0) {
+        printf("[DEMO] main_proc: state=%d cur_type=%d reqnum=%d save_type=%d\n", demo->state, demo->current.type,
+               demo->request_num, demo->request_save.type);
+      } }
+#endif
 
     if (demo->state == mDemo_STATE_STOP) {
         player->actor_class.state_bitfield &= ~ACTOR_STATE_IN_DEMO;

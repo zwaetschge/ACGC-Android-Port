@@ -128,6 +128,7 @@ static xxh_u64 xxhash64(const void* input, int len) {
 #define DXGI_FORMAT_BC1_UNORM        71
 #define DXGI_FORMAT_BC3_UNORM        77
 #define DXGI_FORMAT_BC7_UNORM        98
+#define DXGI_FORMAT_ASTC_4X4_UNORM   134 /* Android: BC7 packs converted offline */
 
 #ifndef GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
 #define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT  0x83F1
@@ -135,12 +136,16 @@ static xxh_u64 xxhash64(const void* input, int len) {
 #ifndef GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
 #define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT  0x83F3
 #endif
+#ifndef GL_COMPRESSED_RGBA_ASTC_4x4_KHR
+#define GL_COMPRESSED_RGBA_ASTC_4x4_KHR   0x93B0
+#endif
 #ifndef GL_COMPRESSED_RGBA_BPTC_UNORM
 #define GL_COMPRESSED_RGBA_BPTC_UNORM     0x8E8C
 #endif
 
 static int g_has_bc7 = 0;
 static int g_has_s3tc = 0;
+static int g_has_astc = 0;
 
 static int g_stat_lookups = 0;
 static int g_stat_hits = 0;
@@ -466,6 +471,12 @@ static GLuint load_dds_file(const char* filepath, int* out_w, int* out_h) {
                 compressed = 1;
                 block_size = 16;
                 break;
+            case DXGI_FORMAT_ASTC_4X4_UNORM:
+                if (!g_has_astc) { fclose(f); return 0; }
+                gl_internal = GL_COMPRESSED_RGBA_ASTC_4x4_KHR;
+                compressed = 1;
+                block_size = 16;
+                break;
             case DXGI_FORMAT_BC1_UNORM:
                 if (!g_has_s3tc) { fclose(f); return 0; }
                 gl_internal = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
@@ -516,13 +527,21 @@ static GLuint load_dds_file(const char* filepath, int* out_w, int* out_h) {
         }
     }
 
-    int data_size;
-    if (compressed) {
-        int blocks_x = ((int)dds_width + 3) / 4;
-        int blocks_y = ((int)dds_height + 3) / 4;
-        data_size = blocks_x * blocks_y * block_size;
-    } else {
-        data_size = (int)(dds_width * dds_height * 4);
+    /* Compressed packs may carry a mip chain (DDSD_MIPMAPCOUNT). */
+    xxh_u32 dds_flags, mip_count;
+    memcpy(&dds_flags, header + 8, 4);
+    memcpy(&mip_count, header + 28, 4);
+    if (!compressed || !(dds_flags & 0x20000) || mip_count < 1) mip_count = 1;
+    if (mip_count > 16) mip_count = 16;
+
+    int data_size = 0;
+    int level_size[16];
+    for (xxh_u32 l = 0; l < mip_count; l++) {
+        int lw = (int)dds_width >> l, lh = (int)dds_height >> l;
+        if (lw < 1) lw = 1;
+        if (lh < 1) lh = 1;
+        level_size[l] = compressed ? ((lw + 3) / 4) * ((lh + 3) / 4) * block_size : lw * lh * 4;
+        data_size += level_size[l];
     }
 
     unsigned char* pixels = (unsigned char*)malloc(data_size);
@@ -549,9 +568,14 @@ static GLuint load_dds_file(const char* filepath, int* out_w, int* out_h) {
     pc_profiler_add_count_texture_bind();
 
     if (compressed) {
-        glCompressedTexImage2D(GL_TEXTURE_2D, 0, gl_internal,
-                               (GLsizei)dds_width, (GLsizei)dds_height,
-                               0, data_size, pixels);
+        int offset = 0;
+        for (xxh_u32 l = 0; l < mip_count; l++) {
+            int lw = (int)dds_width >> l, lh = (int)dds_height >> l;
+            glCompressedTexImage2D(GL_TEXTURE_2D, (GLint)l, gl_internal,
+                                   (GLsizei)(lw < 1 ? 1 : lw), (GLsizei)(lh < 1 ? 1 : lh),
+                                   0, level_size[l], pixels + offset);
+            offset += level_size[l];
+        }
     } else {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei)dds_width, (GLsizei)dds_height,
                      0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
@@ -564,6 +588,7 @@ static GLuint load_dds_file(const char* filepath, int* out_w, int* out_h) {
         return 0;
     }
 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, (GLint)mip_count - 1);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -680,6 +705,7 @@ static void check_compressed_texture_support(void) {
         if (!ext) continue;
         if (strcmp(ext, "GL_ARB_texture_compression_bptc") == 0) g_has_bc7 = 1;
         if (strcmp(ext, "GL_EXT_texture_compression_s3tc") == 0) g_has_s3tc = 1;
+        if (strcmp(ext, "GL_KHR_texture_compression_astc_ldr") == 0) g_has_astc = 1;
     }
 }
 
@@ -716,10 +742,11 @@ void pc_texture_pack_init(void) {
 
     if (g_texpack_count > 0) {
         g_texpack_active = 1;
-        printf("[TexturePack] Loaded %d texture entries (BC7:%s S3TC:%s)\n",
+        printf("[TexturePack] Loaded %d texture entries (BC7:%s S3TC:%s ASTC:%s)\n",
                g_texpack_count,
                g_has_bc7 ? "yes" : "no",
-               g_has_s3tc ? "yes" : "no");
+               g_has_s3tc ? "yes" : "no",
+               g_has_astc ? "yes" : "no");
     } else {
         printf("[TexturePack] No texture pack found in texture_pack/\n");
     }
@@ -769,6 +796,7 @@ static int tpc_upload_entry(const TPCEntryHeader* eh, const unsigned char* pixel
         return 0;
     }
 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -867,6 +895,9 @@ static unsigned char* load_dds_raw(const char* filepath, xxh_u32* out_w, xxh_u32
             case DXGI_FORMAT_BC7_UNORM:
                 if (!g_has_bc7) { fclose(f); return NULL; }
                 gl_internal = GL_COMPRESSED_RGBA_BPTC_UNORM; compressed = 1; block_size = 16; break;
+            case DXGI_FORMAT_ASTC_4X4_UNORM:
+                if (!g_has_astc) { fclose(f); return NULL; }
+                gl_internal = GL_COMPRESSED_RGBA_ASTC_4x4_KHR; compressed = 1; block_size = 16; break;
             case DXGI_FORMAT_BC1_UNORM:
                 if (!g_has_s3tc) { fclose(f); return NULL; }
                 gl_internal = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT; compressed = 1; block_size = 8; break;
@@ -995,6 +1026,7 @@ void pc_texture_pack_preload_all(void) {
                              (GLsizei)dds_w, (GLsizei)dds_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
             if (glGetError() == GL_NO_ERROR) {
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                 loaded_cache_insert(key, tex, (int)dds_w, (int)dds_h);
@@ -1053,6 +1085,7 @@ void pc_texture_pack_preload_all(void) {
                              (GLsizei)dds_w, (GLsizei)dds_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
             if (glGetError() == GL_NO_ERROR) {
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                 loaded_cache_insert(key, tex, (int)dds_w, (int)dds_h);
@@ -1122,6 +1155,10 @@ void pc_texture_pack_shutdown(void) {
     }
     g_texpack_count = 0;
     g_texpack_active = 0;
+}
+
+GLenum pc_texture_pack_min_filter(unsigned int gx_filter) {
+    return gx_filter ? GL_LINEAR_MIPMAP_LINEAR : GL_NEAREST_MIPMAP_NEAREST;
 }
 
 int pc_texture_pack_active(void) {

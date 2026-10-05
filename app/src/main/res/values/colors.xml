@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ac_bg">#12201A</color>
+    <color name="ac_surface">#1C3328</color>
+    <color name="ac_primary">#7CBF6B</color>
+    <color name="ac_text">#F2EFE4</color>
+    <color name="ac_text_dim">#9FB3A4</color>
+    <color name="ac_accent">#F5D76E</color>
+    <color name="ac_error">#E57373</color>
+</resources>

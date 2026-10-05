@@ -1,3 +1,6 @@
+#ifdef TARGET_ANDROID
+#include "pc_ui.h"
+#endif
 #include "m_choice.h"
 
 #include "audio.h"
@@ -7,6 +10,7 @@
 #include "m_font.h"
 #include "m_msg.h"
 #include "sys_matrix.h"
+#include <stdio.h>
 
 typedef void (*mChoice_MAIN_PROC)(mChoice_c*, GAME*);
 

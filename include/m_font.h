@@ -391,7 +391,7 @@ enum {
   mFont_CONT_CODE_AGB_DUMMY3,
   mFont_CONT_CODE_AGB_DUMMY4,
   mFont_CONT_CODE_AGB_MALE_FEMALE_CHECK,
-  mFont_CONT_CODE_AGB_DUMMY5,
+  mFont_CONT_CODE_GENDER_CHAR, /* inline EUR gender suffix: 7F 6B masc_byte fem_byte */
   mFont_CONT_CODE_AGB_DUMMY6,
   mFont_CONT_CODE_AGB_DUMMY7,
   mFont_CONT_CODE_AGB_DUMMY8,
@@ -463,6 +463,9 @@ enum {
 #define mFont_CHAR_FLAG_USE_POLY 2
 #define mFont_CHAR_FLAG_SCALE 4
 #define mFont_CHAR_FLAG_SCALE_RESET 8
+#ifdef TARGET_PC
+#define mFont_CHAR_FLAG_COLOR_SPAN 0x10  /* persistent span-color; inhibits color_ctr decrement */
+#endif
 
 /* sizeof(struct font_char_s) == 0x40 */
 typedef struct font_char_s {

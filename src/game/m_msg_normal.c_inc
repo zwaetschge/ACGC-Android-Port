@@ -1,5 +1,5 @@
 static int mMsg_Check_ScrollOrder(mMsg_Window_c* msg_p) {
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
   return (chkTrigger(BUTTON_A) || chkTrigger(BUTTON_B) || chkTrigger(BUTTON_DDOWN) || chkTrigger(BUTTON_DUP) || chkTrigger(BUTTON_DLEFT) || chkTrigger(BUTTON_DRIGHT));
 #else
   return (chkTrigger(BUTTON_A) || chkTrigger(BUTTON_B));
@@ -36,6 +36,18 @@ static int mMsg_end_to_disappear(mMsg_Window_c* msg_p) {
 }
 
 static void mMsg_request_main_index_fromNormal(mMsg_Window_c* msg_p, GAME* game) {
+#ifdef TARGET_PC
+  { extern int g_pc_verbose; static int s_norm = 0;
+    int a_trg = chkTrigger(BUTTON_A);
+    int b_trg = chkTrigger(BUTTON_B);
+    if (g_pc_verbose && ((s_norm++ % 30) == 0 || a_trg || b_trg)) {
+      printf("[MSGN] a=%d b=%d lock=%d cont=%d cancel=%d last=%d timend=%d cmno=%d force=%d\n",
+             a_trg, b_trg, msg_p->lock_continue,
+             mMsg_Check_NextIndex_ContinueCode(msg_p), msg_p->continue_cancel_flag,
+             mMsg_Check_NextIndex_LastCode(msg_p), mMsg_Check_NextIndex_MsgTimeEndCode(msg_p),
+             msg_p->continue_msg_no, msg_p->force_next);
+    } }
+#endif
   if (mMsg_MsgTimeEnd_dec(msg_p) && mMsg_Check_NextIndex_MsgTimeEndCode(msg_p)) {
     mMsg_end_to_disappear(msg_p);
   }

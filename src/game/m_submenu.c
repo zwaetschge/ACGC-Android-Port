@@ -8,7 +8,7 @@
 #include "m_quest.h"
 #include "libultra/libultra.h"
 
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
 #include "m_museum_display.h"
 #endif
 
@@ -192,6 +192,9 @@ extern void mSM_submenu_dt(Submenu* submenu) {
 }
 
 extern void mSM_open_submenu(Submenu* submenu, int type, int arg0, int arg1) {
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; if (g_pc_verbose) printf("[MOVE] open_submenu: type=%d arg0=%d\n", type, arg0); }
+#endif
     mSM_open_submenu_new2(submenu, type, arg0, arg1, NULL, 0);
 }
 
@@ -576,7 +579,7 @@ static int mSM_check_item_for_curator(int slot_no, int param_2) {
 
     if (item != EMPTY_NO && mPr_GET_ITEM_COND(priv->inventory.item_conditions, slot_no) == mPr_ITEM_COND_NORMAL &&
         item != ITM_KNIFE_AND_FORK && !(item >= ITM_EXCERCISE_CARD00 && item <= ITM_EXCERCISE_CARD12)) {
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
         /* only show items the curator can accept */
         if (item == ITM_FOSSIL) {
             res = TRUE; /* fossils are always selectable */

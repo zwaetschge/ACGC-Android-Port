@@ -10,6 +10,7 @@
 #include "m_card.h"
 #include "m_submenu.h"
 #include "m_scene_ftr.h"
+#include <stdio.h>
 
 static void mSc_set_bank_status_after(Object_Bank_c* bank) {
     bank->bank_id = ABS(bank->bank_id);
@@ -239,6 +240,9 @@ extern void mSc_decide_exchange_bank(Object_Exchange_c* exchange) {
 }
 
 static void Scene_player_select(int scene_no, int npc_actor) {
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL2] Scene_player_select: want=%d save_scene=%d\n", scene_no, (int)Save_Get(scene_no)); }
+#endif
     if (Save_Get(scene_no) == scene_no) {
         int met_villagers_bitfield = 0;
         int met_villagers_num = 0;
@@ -302,6 +306,9 @@ static void Scene_player_select(int scene_no, int npc_actor) {
             Common_Set(player_select_animal_no, i);
         }
 
+#ifdef TARGET_PC
+        { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL2] Scene_player_select: registering npc_id=%d idx=%d met=%d\n", (int)npc_id, i, met_villagers_num); }
+#endif
         mNpc_RegistEventNpc(npc_actor, npc_id, npc_id, Save_Get(animals[i]).cloth);
     }
 }

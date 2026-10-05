@@ -770,3 +770,38 @@ void _pc_load_src_data_model_inv_mwin_c(void) {
     pc_load_asset("assets/inv_mwin/inv_mwin_aw5_tex.bin", inv_mwin_aw5_tex, 0x80, 0x718C20, 0, 0);
 }
 #endif
+
+#ifdef TARGET_ANDROID
+/* The original panel leaves contiguous rectangular holes under slot sprites.
+   With wider spacing, fill those holes with the panel's dotted background. */
+void inv_mwin_wide_gap_dl(Gfx** gfx, Vtx* vertices, float ratio) {
+    static const short bounds[2][4] = { { -89, 31, 2, -70 }, { 43, 91, 50, -70 } };
+    int box, i;
+    for (box = 0; box < 2; box++) {
+        Vtx* v = vertices + box * 4;
+        for (i = 0; i < 4; i++) {
+            float x = bounds[box][i >= 2 ? 1 : 0];
+            float y = bounds[box][(i & 1) ? 3 : 2];
+            v[i] = inv_mwin_v[176];
+            v[i].v.ob[0] = (short)(x * ratio);
+            v[i].v.ob[1] = (short)y;
+            v[i].v.tc[0] = (short)((x + 90.0f) * (512.0f / 15.0f));
+            v[i].v.tc[1] = (short)((60.0f - y) * (512.0f / 15.0f));
+        }
+        gDPPipeSync((*gfx)++);
+        gDPSetCycleType((*gfx)++, G_CYC_1CYCLE);
+        gDPSetRenderMode((*gfx)++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
+        gDPSetCombineMode((*gfx)++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
+        gDPSetPrimColor((*gfx)++, 0, 255, 255, 237, 184, 255);
+        gSPVertex((*gfx)++, v, 4, 0);
+        gSPNTrianglesInit_5b((*gfx)++, 2, 0, 1, 2, 1, 3, 2, 0, 0, 0);
+        gDPPipeSync((*gfx)++);
+        gDPSetTextureImage_Dolphin((*gfx)++, G_IM_FMT_I, G_IM_SIZ_4b, 16, 16, inv_mwin_aw5_tex);
+        gDPSetTile_Dolphin((*gfx)++, G_DOLPHIN_TLUT_DEFAULT_MODE, 0, 15, GX_MIRROR, GX_MIRROR, 0, 0);
+        gDPSetCombineLERP((*gfx)++, 0, 0, 0, PRIMITIVE, 0, 0, 0, TEXEL0,
+                                  0, 0, 0, PRIMITIVE, 0, 0, 0, TEXEL0);
+        gDPSetPrimColor((*gfx)++, 0, 255, 255, 255, 255, 255);
+        gSPNTrianglesInit_5b((*gfx)++, 2, 0, 1, 2, 1, 3, 2, 0, 0, 0);
+    }
+}
+#endif

@@ -5,6 +5,9 @@
 #include "m_lib.h"
 #include "m_font.h"
 #include "m_mail.h"
+#ifdef TARGET_PC
+#include "pc/include/pc_settings.h"
+#endif
 
 static u8 buff[MAIL_BODY_LEN - 1] ATTRIBUTE_ALIGN(32); // TODO: proper bss ordering
 static u32 String_rom_start;
@@ -132,6 +135,12 @@ extern int mString_Load_HourStringFromRom2(u8* dst, lbRTC_hour_t hour) {
     if (hour > 23) {
         hour = 0;
     }
+
+#ifdef TARGET_PC
+    if (pc_settings_is_eur_locale()) {
+        return mFont_UnintToString(dst, 15, hour, 2, TRUE, FALSE, FALSE);
+    }
+#endif
 
     clamped_hour = hour;
     switch (clamped_hour) {

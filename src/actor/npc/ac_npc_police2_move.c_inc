@@ -4,7 +4,7 @@ static void aPOL2_BGcheck(ACTOR* actorx) {
 
 static void aPOL2_set_animation(NPC_POLICE2_ACTOR* actor, int action) {
     // clang-format off
-    static animeSeqNoTable[] = {
+    static int animeSeqNoTable[] = { /* clang: implicit int array not allowed */
         aNPC_ANIM_WAIT1,
         aNPC_ANIM_WAIT1,
         aNPC_ANIM_WALK1,

@@ -330,7 +330,7 @@ extern void mPr_RenewalMapInfo(mPr_map_info_c* map_info, int max, mLd_land_info_
 extern void mPr_RandomSetPlayerData_title_demo();
 extern void mPr_PrintMapInfo_debug(gfxprint_t* gfxprint);
 
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     /* new bells go straight to wallet */
     extern u32 mPr_GetAmountForMoneyItem(mActor_name_t item);
     extern int mPr_GivePossessionBells(u32 amount);

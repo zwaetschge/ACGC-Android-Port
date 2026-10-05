@@ -2,8 +2,20 @@ static void aNPS2_think_main_proc(NPC_ACTOR* nactorx, GAME_PLAY* play) {
     NPC_P_SEL2_ACTOR* p_sel2 = (NPC_P_SEL2_ACTOR*)nactorx;
 
     if (nactorx->action.step == aNPC_ACTION_END_STEP && !p_sel2->talk_end_flag) {
+#ifdef TARGET_PC
+        { extern int g_pc_verbose;
+          static int s_printed = 0;
+          if (g_pc_verbose && !s_printed) { s_printed = 1; printf("[PSEL2] think: END_STEP reached, requesting talk\n"); } }
+#endif
         nactorx->talk_info.talk_request_proc = &aNPS2_talk_request;
     }
+#ifdef TARGET_PC
+    else if (nactorx->action.step == aNPC_ACTION_END_STEP && p_sel2->talk_end_flag) {
+        extern int g_pc_verbose;
+        static int s_printed_blocked = 0;
+        if (g_pc_verbose && !s_printed_blocked) { s_printed_blocked = 1; printf("[PSEL2] think: END_STEP but talk_end_flag set (no more requests)\n"); }
+    }
+#endif
 }
 
 static void aNPS2_think_init_proc(NPC_ACTOR* nactorx, GAME_PLAY* play) {

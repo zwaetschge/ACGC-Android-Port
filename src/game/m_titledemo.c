@@ -220,6 +220,9 @@ static void set_player_demo_keydata_hold(float delta_time) {
 }
 
 static void mTD_game_end_init(GAME_PLAY* play) {
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; if (g_pc_verbose) printf("[TD] game_end_init: demo_no=%d tdemo_time=%.2f\n", mEv_CheckTitleDemo(), S_tdemo_time); }
+#endif
     play->fb_fade_type = FADE_TYPE_SELECT_END;
     play->fb_wipe_type = WIPE_TYPE_FADE_BLACK;
 

@@ -682,7 +682,8 @@ static void pc_gx_load_tex_obj_impl(void* obj, u32 id) {
         }
         if (cached->min_filter != filter_mode) {
             GLenum gl_filter = filter_mode ? GL_LINEAR : GL_NEAREST;
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                            cached->external ? pc_texture_pack_min_filter(filter_mode) : gl_filter);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter);
             cached->min_filter = filter_mode;
         }
@@ -731,7 +732,8 @@ static void pc_gx_load_tex_obj_impl(void* obj, u32 id) {
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, gl_wt);
             {
                 GLenum gl_filter = filter_mode ? GL_LINEAR : GL_NEAREST;
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                                pc_texture_pack_min_filter(filter_mode));
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter);
             }
 

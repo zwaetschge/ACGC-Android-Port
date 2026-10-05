@@ -116,7 +116,7 @@ static int Player_actor_CheckController_forShake_tree(GAME* game) {
     PLAYER_ACTOR* player = (PLAYER_ACTOR*)actorx;
     s8 kind = Player_actor_Get_ItemKind(actorx, player->now_main_index);
 
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     /* net/rod no longer block tree shaking */
     if (!mPlayer_ITEM_KIND_CHECK(kind, 0, mPlayer_ITEM_KIND_NUM) ||
         mPlayer_ITEM_IS_NOT_TOOL(kind) != FALSE ||

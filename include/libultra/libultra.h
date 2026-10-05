@@ -22,9 +22,15 @@ extern "C" {
 
 typedef u64 Z_OSTime;
 
+/* Android: bionic <strings.h> turns bcopy/bzero into FORTIFY macros and
+ * declares bcmp with const-qualified parameters — redeclaring them here
+ * breaks TUs that included <strings.h> first. Every TU gets bionic-
+ * compatible declarations via the forced -include android_ansi_decls.h. */
+#ifndef __ANDROID__
 int bcmp(void* v1, void* v2, u32 size);
 void bcopy(void* src, void* dst, size_t n);
 void bzero(void* ptr, size_t size);
+#endif
 void osSyncPrintf(const char* fmt, ...);
 void osWritebackDCache(void* vaddr, u32 nbytes);
 u32 osGetCount(void);

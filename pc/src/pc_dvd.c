@@ -1,6 +1,7 @@
 /* pc_dvd.c - DVD filesystem: reads from disc image (CISO/ISO/GCM) or extracted files */
 #include "pc_platform.h"
 #include "pc_disc.h"
+#include "pc_settings.h"
 
 typedef struct {
     char gameName[4];
@@ -102,6 +103,30 @@ BOOL DVDFastOpen(s32 entrynum, void* fileInfo) {
     }
 
     const char* path = dvd_entry_table[entrynum].path;
+
+    /* Localized archive override: forest_2nd.arc -> translations/<lang>/forest_2nd.<lang>.arc */
+    {
+        const char* lang = pc_settings_get_language();
+        const char* name = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
+        const char* dot = strrchr(name, '.');
+        if (lang[0] != '\0' && strcmp(lang, "default") != 0 && dot != NULL) {
+            char localized[512];
+            FILE* fp;
+            snprintf(localized, sizeof(localized), "%s/%s/%.*s.%s%s", pc_settings_get_translations_dir(),
+                     lang, (int)(dot - name), name, lang, dot);
+            fp = fopen(localized, "rb");
+            if (fp) {
+                memset(fileInfo, 0, 0x3C);
+                fseek(fp, 0, SEEK_END);
+                *dvd_fi_length(fileInfo) = (u32)ftell(fp);
+                fseek(fp, 0, SEEK_SET);
+                *dvd_fi_fp(fileInfo) = fp;
+                *dvd_fi_startAddr(fileInfo) = 0;
+                printf("[PC/DVD] %s -> %s\n", path, localized);
+                return TRUE;
+            }
+        }
+    }
 
     /* Try disc image first */
     if (pc_disc_is_open()) {

@@ -312,6 +312,16 @@ static void aNPS2_set_choice_str(NPC_P_SEL2_ACTOR* p_sel2, int type) {
                 mChoice_Load_ChoseStringFromRom(choice_win, str + (player_sum * mChoice_CHOICE_STRING_LEN), 0x29,
                                                 (ACTOR*)p_sel2);
             } else {
+#ifdef TARGET_PC
+                /* EUR German text (PAL foresta.rel): "Bin neu hier!" */
+                static u8 new_player_str_de[13] = "Bin neu hier!";
+                extern const char* pc_settings_get_language(void);
+                const char* lang = pc_settings_get_language();
+                if (lang[0] == 'd' && lang[1] == 'e' && lang[2] == '-') {
+                    mem_copy(str + (player_sum * mChoice_CHOICE_STRING_LEN), new_player_str_de,
+                             sizeof(new_player_str_de));
+                } else
+#endif
                 mem_copy(str + (player_sum * mChoice_CHOICE_STRING_LEN), new_player_str, sizeof(new_player_str));
             }
             str_p[player_sum] = str + (player_sum * mChoice_CHOICE_STRING_LEN);
@@ -1400,6 +1410,9 @@ static void aNPS2_change_talk_proc(NPC_P_SEL2_ACTOR* p_sel2, GAME_PLAY* play, in
     p_sel2->talk_idx = talk_idx;
     p_sel2->talk_proc = process[talk_idx];
     aNPS2_talk_init_proc(p_sel2, play, talk_idx);
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL2] talk state: -> %d\n", talk_idx); }
+#endif
 }
 
 static void aNPS2_set_talk_info_talk_request(ACTOR* actorx) {
@@ -1417,6 +1430,9 @@ static int aNPS2_talk_init(ACTOR* actorx, GAME* game) {
     int slot = mCD_SLOT_A;
     int now_slot;
 
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL2] talk_init (conversation start)\n"); }
+#endif
     aNPS2_change_talk_proc(p_sel2, play, aNPS2_TALK_WHATS_HAPPEN);
     mDemo_Set_ListenAble();
     p_sel2->npc_class.talk_info.talk_request_proc = (aNPC_TALK_REQUEST_PROC)&none_proc1;
@@ -1441,6 +1457,9 @@ static int aNPS2_talk_end_chk(ACTOR* actorx, GAME* game) {
 
     (*p_sel2->talk_proc)(p_sel2, play);
     if (mDemo_Check(mDemo_TYPE_SPEAK, actorx) == FALSE) {
+#ifdef TARGET_PC
+        { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL2] talk END at state %d\n", p_sel2->talk_idx); }
+#endif
         aNPS2_think_init_proc((NPC_ACTOR*)actorx, play);
         p_sel2->talk_end_flag = TRUE;
         res = TRUE;

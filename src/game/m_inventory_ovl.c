@@ -1,3 +1,6 @@
+#ifdef TARGET_ANDROID
+#include "pc_ui.h"
+#endif
 #include "m_inventory_ovl.h"
 
 #include "m_player_lib.h"
@@ -1200,6 +1203,10 @@ static void mIV_set_player(Submenu* submenu, GRAPH* graph, GAME_PLAY* play, f32 
     if (player != NULL) {
         int x = (int)pos_x + 20;
         int y = (int)-pos_y + 9;
+#ifdef TARGET_ANDROID
+        if (submenu->overlay->menu_info[mSM_OVL_INVENTORY].data0 == mSM_IV_OPEN_NORMAL)
+            x -= (int)(78.0f * (pc_ui_width_ratio() - 1.0f));
+#endif
         /* NOTE: 128.0 and 0.0 are doubles here */
         int draw_flag = (128.0 + x >= 0.0) && (x < 320);
 
@@ -1558,6 +1565,9 @@ extern Gfx inv_mwin_15bT_model[];
 extern Gfx inv_mwin_item_frame_mode[];
 extern Gfx inv_mwin_kuni_model[];
 extern Gfx inv_mwin_kuni2_model[];
+#ifdef TARGET_ANDROID
+extern void inv_mwin_wide_gap_dl(Gfx** gfx, Vtx* vertices, float ratio);
+#endif
 
 static void mIV_set_normal_frame_dl(Submenu* submenu, GAME_PLAY* play, GRAPH* graph, f32 pos_x, f32 pos_y) {
     static Gfx* item_frame_disp[] = {
@@ -1579,6 +1589,13 @@ static void mIV_set_normal_frame_dl(Submenu* submenu, GAME_PLAY* play, GRAPH* gr
 
     OPEN_POLY_OPA_DISP(graph);
 
+#ifdef TARGET_ANDROID
+    if (submenu->overlay->menu_info[mSM_OVL_INVENTORY].data0 == mSM_IV_OPEN_NORMAL &&
+        pc_ui_width_ratio() > 1.0f) {
+        Vtx* vertices = GRAPH_ALLOC_TYPE(graph, Vtx, 8);
+        if (vertices != NULL) inv_mwin_wide_gap_dl(&POLY_OPA_DISP, vertices, pc_ui_width_ratio());
+    }
+#endif
     gSPDisplayList(POLY_OPA_DISP++, inv_mwin_item_frame_mode);
 
     frame_p = item_frame_disp;
@@ -1784,6 +1801,10 @@ static void mIV_set_money(Submenu* submenu, GAME* game, f32 pos_x, f32 pos_y) {
 
     width = (f32)mFont_GetStringWidth(money_str, sizeof(money_str), TRUE) * 0.875f;
     pos_x = (160.0f + pos_x + -22.0f + 38.5f) - width;
+#ifdef TARGET_ANDROID
+    if (submenu->overlay->menu_info[mSM_OVL_INVENTORY].data0 == mSM_IV_OPEN_NORMAL)
+        pos_x += 16.5f * (pc_ui_width_ratio() - 1.0f);
+#endif
     pos_y = 120.0f - (pos_y + 18.0f);
 
     // clang-format off
@@ -1841,6 +1862,10 @@ static void mIV_SetLineStrings_centering(GAME* game, u8* string, int type, f32 x
     }
 
     x += (max_width - width) * 0.5f;
+#ifdef TARGET_ANDROID
+    if (((GAME_PLAY*)game)->submenu.overlay->menu_info[mSM_OVL_INVENTORY].data0 == mSM_IV_OPEN_NORMAL)
+        x += (line_data_p->pos_x + max_width * 0.5f - 160.0f) * (pc_ui_width_ratio() - 1.0f);
+#endif
 
     // clang-format off
     mFont_SetLineStrings(
@@ -1970,11 +1995,74 @@ static void mIV_set_dl(Submenu* submenu, mSM_MenuInfo_c* menu_info, GAME* game) 
     submenu->overlay->menu_control.tag_draw_func(submenu, game, mSM_OVL_INVENTORY);
 }
 
+#ifdef TARGET_ANDROID
+extern Vtx inv_mwin_v[296];
+extern Vtx inv_sakana_v[148];
+extern Vtx inv_mushi_v[146];
+
+static void mIV_wide_frame(Submenu* submenu) {
+    static s16 original_x[296];
+    static s16 fish_x[148], bug_x[146];
+    static int initialized;
+    static float last_ratio = -1.0f;
+    float ratio = submenu->overlay->menu_info[mSM_OVL_INVENTORY].data0 == mSM_IV_OPEN_NORMAL
+                      ? pc_ui_width_ratio() : 1.0f;
+    int i;
+    if (!initialized) {
+        for (i = 0; i < 296; i++) original_x[i] = inv_mwin_v[i].v.ob[0];
+        for (i = 0; i < 148; i++) fish_x[i] = inv_sakana_v[i].v.ob[0];
+        for (i = 0; i < 146; i++) bug_x[i] = inv_mushi_v[i].v.ob[0];
+        initialized = TRUE;
+    }
+    if (ratio == last_ratio) return;
+    last_ratio = ratio;
+    /* Widen the panel and text fields; move each slot/label as a whole so
+       circles, lettering and tab symbols retain their original shape. */
+    for (i = 0; i < 296; i++) {
+        float x = original_x[i] * ratio;
+        if ((i >= 56 && i < 72) || (i >= 176 && i < 284)) {
+            int first = (i / 4) * 4;
+            float center = (original_x[first] + original_x[first + 1] +
+                            original_x[first + 2] + original_x[first + 3]) * 0.25f;
+            x = original_x[i] + center * (ratio - 1.0f);
+        }
+        inv_mwin_v[i].v.ob[0] = (s16)x;
+    }
+    /* Collection pages sit behind the inventory. Their side tabs must use
+       the same wide anchors or the enlarged front panel covers them. */
+    {
+        Vtx* pages[2] = { inv_sakana_v, inv_mushi_v };
+        s16* originals[2] = { fish_x, bug_x };
+        int counts[2] = { 148, 146 };
+        int page;
+        for (page = 0; page < 2; page++) {
+            s16* original = originals[page];
+            int icon_start = counts[page] - 4;
+            for (i = 0; i < counts[page]; i++) {
+                float x = original[i] * ratio;
+                if ((i >= 4 && i < 8) || (i >= 60 && i < 64) || i >= icon_start) {
+                    int first = i >= icon_start ? icon_start : (i / 4) * 4;
+                    float center = (original[first] + original[first + 1] +
+                                    original[first + 2] + original[first + 3]) * 0.25f;
+                    x = original[i] + center * (ratio - 1.0f);
+                } else if (i >= 136) {
+                    x = original[i]; /* collection title retains its proportions */
+                }
+                pages[page][i].v.ob[0] = (s16)x;
+            }
+        }
+    }
+}
+#endif
+
 static void mIV_inventory_ovl_draw(Submenu* submenu, GAME* game) {
     mSM_MenuInfo_c* menu_info = &submenu->overlay->menu_info[mSM_OVL_INVENTORY];
     mIV_Ovl_c* inv_ovl = submenu->overlay->inventory_ovl;
     f32 pos_y = menu_info->position[1];
 
+#ifdef TARGET_ANDROID
+    mIV_wide_frame(submenu);
+#endif
     menu_info->pre_draw_func(submenu, game);
     if (inv_ovl->page_move_timer != 0 && mIV_page_move_accum > 0.0f) {
         f32 timer = (f32)inv_ovl->page_move_timer - mIV_page_move_accum;

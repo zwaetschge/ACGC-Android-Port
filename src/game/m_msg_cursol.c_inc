@@ -579,7 +579,11 @@ static int mMsg_Main_Cursol_PutString_Item(mMsg_Window_c* msg_p, int idx, int it
     msg_p->status_flags &= ~mMsg_STATUS_FLAG_CUT_ARTICLE;
   }
   else {
+#ifdef TARGET_PC
+    article = pc_settings_is_eur_locale() ? mIN_ARTICLE_NONE : mIN_ARTICLE_NUM;
+#else
     article = mIN_ARTICLE_NUM;
+#endif
   }
 
   msg_p->status_flags &= ~mMsg_STATUS_FLAG_CAPITALIZE;
@@ -908,6 +912,22 @@ static int mMsg_Main_Cursol_MaleFemaleCheck_ControlCursol(mMsg_Window_c* msg_p, 
   return mMsg_RESULT_VOID;
 }
 
+static int mMsg_Main_Cursol_GenderChar_ControlCursol(mMsg_Window_c* msg_p, int* idx_p) {
+  mMsg_Data_c* msg_data = msg_p->msg_data;
+  u8* data = msg_data->text_buf.data;
+  int command_len = mFont_CodeSize_idx_get(data, *idx_p);
+  u8 ch;
+
+  if (Common_Get(now_private)->gender == mPr_SEX_MALE) {
+    ch = data[*idx_p + 2];
+  } else {
+    ch = data[*idx_p + 3];
+  }
+  msg_data->msg_len = mMsg_MoveDataCut(data, *idx_p + 1, *idx_p + command_len, msg_data->msg_len, FALSE);
+  data[*idx_p] = ch;
+  return mMsg_RESULT_VOID;
+}
+
 static int mMsg_Main_Cursol_PutString_IslandName_ControlCursol(mMsg_Window_c* msg_p, int* idx_p) {
   mMsg_Data_c* msg_data = msg_p->msg_data;
   u8* data = msg_data->text_buf.data;
@@ -1065,7 +1085,7 @@ static int mMsg_Main_Cursol_Proc_ControlCursol(mMsg_Window_c* msg_p, int* idx_p)
       &mMsg_Main_Cursol_AgbDummy_ControlCursol,
       &mMsg_Main_Cursol_AgbDummy_ControlCursol,
       &mMsg_Main_Cursol_MaleFemaleCheck_ControlCursol,
-      &mMsg_Main_Cursol_AgbDummy_ControlCursol,
+      &mMsg_Main_Cursol_GenderChar_ControlCursol,
       &mMsg_Main_Cursol_AgbDummy_ControlCursol,
       &mMsg_Main_Cursol_AgbDummy_ControlCursol,
       &mMsg_Main_Cursol_AgbDummy_ControlCursol,
@@ -1105,7 +1125,7 @@ static int mMsg_Main_Cursol_ControlCursol(mMsg_Window_c* msg_p) {
   int utter = FALSE;
   int processed = FALSE;
 
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
   /* B latches fast text for the rest of the message; L/R or DPAD also speed it up */
   if ((msg_p->status_flags & mMsg_STATUS_FLAG_CURSOL_JUST) == 0 &&
       (chkTrigger(BUTTON_B) || chkButton(BUTTON_L) || chkButton(BUTTON_R) || chkButton(BUTTON_DDOWN) || chkButton(BUTTON_DUP) || chkButton(BUTTON_DLEFT) || chkButton(BUTTON_DRIGHT))) {

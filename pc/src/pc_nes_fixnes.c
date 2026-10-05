@@ -390,12 +390,27 @@ void pc_fixnes_render_frame(uint16_t *fb) {
     if (!fixnes_shader) fixnes_init_gl();
 
     /* Upload framebuffer — fixNES outputs RGB565 with COL_TEX_BSWAP
-     * (R in low bits) — upload with GL_UNSIGNED_SHORT_5_6_5_REV.
+     * (R in low bits) — desktop GL uploads with GL_UNSIGNED_SHORT_5_6_5_REV.
      * Skip top 8 rows (often garbage), show 224 lines. */
     glBindTexture(GL_TEXTURE_2D, fixnes_texture);
     if (g_pc_profile_enabled) pc_profiler_add_count_texture_bind_slow();
+#ifdef TARGET_ANDROID
+    /* OpenGL ES 3 has no REV packed formats. Swapping the R and B fields of
+     * each pixel makes a plain GL_UNSIGNED_SHORT_5_6_5 upload (R in low bits)
+     * produce the same component order the desktop build gets from REV. */
+    {
+        uint16_t* px = fb + 256 * 8;
+        for (int i = 0; i < 256 * 224; i++) {
+            uint16_t v = px[i];
+            px[i] = (uint16_t)(((v >> 11) & 0x001F) | (v & 0x07E0) | ((v & 0x001F) << 11));
+        }
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 256, 224, 0,
+                     GL_RGB, GL_UNSIGNED_SHORT_5_6_5, px);
+    }
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 256, 224, 0,
                  GL_RGB, GL_UNSIGNED_SHORT_5_6_5_REV, fb + 256 * 8);
+#endif
 
     /* 0 = stretch to window, 1 = centered 4:3 with pillar/letterbox. */
     int win_w = g_pc_window_w;

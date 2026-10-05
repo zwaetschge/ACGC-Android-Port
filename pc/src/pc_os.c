@@ -23,10 +23,27 @@ static s64 gc_epoch_offset_ticks = 0; /* Ticks from GC epoch to program start */
 /* GC epoch: Jan 1, 2000 (946684800 seconds after Unix epoch) */
 #define GC_UNIX_EPOCH_DIFF 946684800LL
 
+#ifdef TARGET_ANDROID
+/* CLOCK_BOOTTIME keeps counting while the device sleeps, so the in-game
+ * clock stays in sync with the wall clock after the screen was off. */
+static u64 pc_os_counter(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_BOOTTIME, &ts);
+    return (u64)ts.tv_sec * 1000000000ULL + (u64)ts.tv_nsec;
+}
+static u64 pc_os_counter_freq(void) { return 1000000000ULL; }
+#else
+static u64 pc_os_counter(void) { return SDL_GetPerformanceCounter(); }
+static u64 pc_os_counter_freq(void) { return SDL_GetPerformanceFrequency(); }
+#endif
+
 s64 osGetTime(void) {
-    u64 now = SDL_GetPerformanceCounter();
-    u64 freq = SDL_GetPerformanceFrequency();
-    s64 elapsed = (s64)((now - time_base_start) * (u64)GC_TIMER_CLOCK / freq);
+    u64 delta = pc_os_counter() - time_base_start;
+    u64 freq = pc_os_counter_freq();
+    /* split into whole seconds + remainder: delta * GC_TIMER_CLOCK overflows
+     * u64 after ~455 s with a 1 GHz counter (Linux/Android) */
+    s64 elapsed = (s64)((delta / freq) * (u64)GC_TIMER_CLOCK +
+                        (delta % freq) * (u64)GC_TIMER_CLOCK / freq);
     return gc_epoch_offset_ticks + elapsed;
 }
 
@@ -247,7 +264,7 @@ void OSInit(void) {
         arena_lo = arena_memory + 0x3100;
         arena_hi = arena_memory + PC_MAIN_MEMORY_SIZE;
     }
-    time_base_start = SDL_GetPerformanceCounter();
+    time_base_start = pc_os_counter();
     /* compute ticks from GC epoch (Jan 1, 2000) to now, with timezone */
     {
         time_t unix_now = time(NULL);

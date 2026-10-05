@@ -90,7 +90,7 @@ s32 JKRAramStream::writeToAram(JKRAramStreamCommand* command) {
     }
 
     if (buffer) {
-        command->mStream->seek(offset, SEEK_SET);
+        command->mStream->seek(offset, (JSUStreamSeekFrom)SEEK_SET);
         while (dstSize != 0) {
             u32 length = (dstSize > bufferSize) ? bufferSize : dstSize;
 

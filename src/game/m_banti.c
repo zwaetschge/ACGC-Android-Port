@@ -1,3 +1,6 @@
+#ifdef TARGET_ANDROID
+#include "pc_ui.h"
+#endif
 #include "m_banti.h"
 
 #include "m_play.h"
@@ -560,6 +563,11 @@ extern void banti_draw(GAME_PLAY* play) {
         }
 
         Matrix_scale(16.0f, 16.0f, 16.0f, MTX_LOAD);
+#ifdef TARGET_ANDROID
+        /* Anchor to the physical edge instead of the old 4:3 safe area. */
+        Matrix_translate((banti.disp_left ? -1.0f : 1.0f) *
+                         160.0f * (pc_ui_width_ratio() - 1.0f), 0.0f, 0.0f, MTX_MULT);
+#endif
 
         if (banti.disp_left == TRUE) {
             Matrix_translate(-184.0f, 0.0f, 0.0f, MTX_MULT);

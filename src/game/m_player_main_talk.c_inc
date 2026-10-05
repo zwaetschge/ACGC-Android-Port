@@ -1,5 +1,14 @@
 static int Player_actor_request_main_talk_all(GAME* game, ACTOR* talk_actor_p, int turn_flag, f32 morph_speed,
                                               int umbrella_flag, int priority) {
+#ifdef TARGET_PC
+    { extern int g_pc_verbose;
+      if (g_pc_verbose) {
+        PLAYER_ACTOR* dbg_p = GET_PLAYER_ACTOR_GAME(game);
+        printf("[DEMO] req_talk: prio=%d rprio=%d ridx=%d rchg=%d now=%d\n",
+               priority, dbg_p->requested_main_index_priority, dbg_p->requested_main_index,
+               dbg_p->requested_main_index_changed, dbg_p->now_main_index);
+      } }
+#endif
     if (Player_actor_check_request_main_able(game, mPlayer_INDEX_TALK, priority)) {
         PLAYER_ACTOR* player = GET_PLAYER_ACTOR_GAME(game);
 

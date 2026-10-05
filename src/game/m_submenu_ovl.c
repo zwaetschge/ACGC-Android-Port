@@ -2141,7 +2141,7 @@ static void mSM_make_trigger_data(Submenu* submenu) {
     int trigger = (getButton() & 0xF) | getTrigger();
     mSM_Control_c* control = &submenu->overlay->menu_control;
 
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     /* D-Pad bits sit at the same positions as the C-stick bits, shifted left by 8 */
     trigger |= (getButton() & (BUTTON_DUP | BUTTON_DDOWN | BUTTON_DLEFT | BUTTON_DRIGHT)) >> 8;
     trigger &= ~(BUTTON_DUP | BUTTON_DDOWN | BUTTON_DLEFT | BUTTON_DRIGHT);

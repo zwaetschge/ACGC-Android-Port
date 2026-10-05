@@ -45,7 +45,11 @@ static const mFont_ControlCodeInfo_t mFont_cont_info_tbl[mFont_CONT_CODE_NUM] = 
   { 2, mFont_CONT_ATTRIBUTE_0 },
   { 3, mFont_CONT_ATTRIBUTE_0 },
   { 2, mFont_CONT_ATTRIBUTE_0 },
+#ifdef TARGET_PC
+  { 5, mFont_CONT_ATTRIBUTE_CHARACTER },  /* COLOR (0x05): per-char color span */
+#else
   { 5, mFont_CONT_ATTRIBUTE_0 },
+#endif
   { 2, mFont_CONT_ATTRIBUTE_0 },
   { 2, mFont_CONT_ATTRIBUTE_0 },
   { 5, mFont_CONT_ATTRIBUTE_DEMO },
@@ -147,7 +151,7 @@ static const mFont_ControlCodeInfo_t mFont_cont_info_tbl[mFont_CONT_CODE_NUM] = 
   { 2, mFont_CONT_ATTRIBUTE_AGB_DUMMY },
   { 2, mFont_CONT_ATTRIBUTE_AGB_DUMMY },
   { 6, mFont_CONT_ATTRIBUTE_0 },
-  { 2, mFont_CONT_ATTRIBUTE_AGB_DUMMY },
+  { 4, mFont_CONT_ATTRIBUTE_0 }, /* GENDER_CHAR: 7F 6B masc_byte fem_byte */
   { 2, mFont_CONT_ATTRIBUTE_AGB_DUMMY },
   { 3, mFont_CONT_ATTRIBUTE_AGB_DUMMY },
   { 3, mFont_CONT_ATTRIBUTE_AGB_DUMMY },
@@ -729,7 +733,11 @@ static void mFont_gppDrawCharPoly(
 }
 
 static void mFontChar_gppDraw_sentence_restore(mFontChar* this, mFontSentence* sentence, Gfx** gfx_pp) {
+#ifdef TARGET_PC
+  if (this->color_ctr > 0 && !(this->flags & mFont_CHAR_FLAG_COLOR_SPAN)) {
+#else
   if (this->color_ctr > 0) {
+#endif
     this->color_ctr--;
     if (this->color_ctr == 0) {
       rgba_t_move(&this->color, &sentence->color);
@@ -783,6 +791,22 @@ static void mFontChar_ContProc_set_char_scale(mFontChar* this, Gfx** gfx_pp) {
   this->flags |= (mFont_CHAR_FLAG_SCALE | mFont_CHAR_FLAG_SCALE_RESET);
 }
 
+#ifdef TARGET_PC
+/* Span-based color change (0x05): sets color, no fixed run length. Uses the
+ * existing color_ctr machinery with a large count so the override persists
+ * until the next 0x05 resets it. Needed for EUR locales where color spans
+ * wrap runtime-expanded STR_* opcodes whose char count is unknown at
+ * translate time. */
+static void mFontChar_ContProc_set_color(mFontChar* this, Gfx** gfx_pp) {
+  this->color.r = this->char_p[2];
+  this->color.g = this->char_p[3];
+  this->color.b = this->char_p[4];
+  this->color.a = 255;
+  this->flags |= mFont_CHAR_FLAG_COLOR_SPAN;
+  mFont_gppSetPrimColor(gfx_pp, &this->color);
+}
+#endif
+
 static mFont_ControlCodeCharFunc mFontChar_cont_proc_get(int control_code) {
   if (control_code == mFont_CONT_CODE_SET_COLOR_CHAR) {
     return mFontChar_ContProc_set_color_char;
@@ -790,6 +814,11 @@ static mFont_ControlCodeCharFunc mFontChar_cont_proc_get(int control_code) {
   else if (control_code == mFont_CONT_CODE_SET_CHAR_SCALE) {
     return mFontChar_ContProc_set_char_scale;
   }
+#ifdef TARGET_PC
+  else if (control_code == mFont_CONT_CODE_COLOR) {
+    return mFontChar_ContProc_set_color;
+  }
+#endif
   else {
     return NULL;
   }

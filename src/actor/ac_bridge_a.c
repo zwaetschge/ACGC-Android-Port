@@ -141,7 +141,7 @@ static f32 aBridge_player_check(STRUCTURE_ACTOR* bridge, GAME_PLAY* play) {
         } else if (bridge_run_speed > 0.1f) {
             add_calc(&bridge->arg0_f, bridge_run_speed, 0.1f + (f32)GETREG(TAKREG, 22) * 0.01f, 0.1f, 0.01f);
             add_calc(&bridge->arg1_f, 1.0f, 0.1f + (f32)GETREG(TAKREG, 24) * 0.01f, 0.1f, 0.01f);
-            return;
+            return 0.0f; /* clang: bare return in f32 fn is an error, caller ignores the value */
         }
     }
 

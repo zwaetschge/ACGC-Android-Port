@@ -20,6 +20,15 @@ static void aNPS_think_main_proc(NPC_ACTOR* nactorx, GAME_PLAY* play) {
     f32 dt = (f32)play->game.graph->dt_num_60fps_frames;
     u32 alpha;
 
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; static int s_ps = 0;
+      if (g_pc_verbose && (s_ps++ % 120) == 0) {
+        printf("[PSEL] think: strum=%.0f talk_end=%d req=%d act.idx=%d act.step=%d\n",
+               p_sel->strum_timer, p_sel->talk_end_flag,
+               nactorx->talk_info.talk_request_proc != NULL, nactorx->action.idx, nactorx->action.step);
+      } }
+#endif
+
     if (!p_sel->talk_end_flag) {
         if (p_sel->strum_timer <= 0.0f) {
             nactorx->talk_info.talk_request_proc = &aNPS_talk_request;

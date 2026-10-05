@@ -5240,7 +5240,7 @@ void emu64::dl_G_CULLDL() {
         }
 
         /* Assign culling flags to vertex */
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
         /* Widescreen hor+ widens the rendered frustum but culling uses the
          * original 4:3 projection matrix.  Extend X cull bounds to match. */
         {

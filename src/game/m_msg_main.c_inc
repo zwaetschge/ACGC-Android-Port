@@ -322,13 +322,76 @@ static int mMsg_Count_MsgData(u8* data) {
     return i;
 }
 
+/* EUR path: copy the pre-translated entry directly from the in-memory buffer. */
+#ifdef TARGET_PC
+static int mMsg_LoadMsgData_EUR(mMsg_Data_c* msg_data, int index, int cut)
+{
+    u32 n;
+    const u32* table = pc_msg_eur_get_table(&n);
+    u32 data_size;
+    const u8* data = pc_msg_eur_get_data(&data_size);
+
+    if (!table || !data || (u32)index >= n) return FALSE;
+
+    u32 start = (index == 0) ? 0 : table[index - 1];
+    u32 end   = table[index];
+    u32 size  = (end > start) ? (end - start) : 0;
+
+    if (size == 0) { msg_data->data_loaded = FALSE; return FALSE; }
+    if (size > mMsg_MSG_BUF_MAX) size = mMsg_MSG_BUF_MAX;
+
+    /* Entries containing SetSelectWindow need USA choice-ID codes that the EUR
+     * msg.bin does not carry — fall back to the ARAM path (arc message_data.bin)
+     * which has the correct 7F 16/17/18 <ids> from the l10n pipeline. */
+    {
+        const u8* p = data + start;
+        u32 k;
+        for (k = 0; k + 1 < size; k++) {
+            if (p[k] == 0x7F && p[k + 1] == mFont_CONT_CODE_SET_SELECT_WINDOW)
+                return FALSE;
+        }
+    }
+
+    mFRm_set_msg_idx(index);
+    memcpy(msg_data->text_buf.data, data + start, size);
+
+    /* Same Kapp'n truncation as the USA path. */
+    if (index == 12410 || index == 12620) {
+        u8* p = msg_data->text_buf.data;
+        int j;
+        for (j = 0; j < (int)size - 1; j++) {
+            if (p[j] == 0x7F && p[j + 1] == 0x04) { p[j + 1] = 0x00; break; }
+        }
+    }
+
+    msg_data->msg_no      = index;
+    msg_data->data_loaded = TRUE;
+    msg_data->msg_len     = mMsg_Count_MsgData(msg_data->text_buf.data);
+    msg_data->cut         = cut;
+    return TRUE;
+}
+#endif /* TARGET_PC */
+
 static int mMsg_LoadMsgData(mMsg_Data_c* msg_data, int index, int cut) {
+#ifdef TARGET_PC
+    if (pc_msg_eur_ensure_loaded()) {
+        int r = mMsg_LoadMsgData_EUR(msg_data, index, cut);
+        if (r) return r;
+        /* EUR deferred this entry — fall through to ARAM path below */
+    }
+#endif
     if (msg_data != NULL) {
         u32 addr;
         u32 size;
 
         mFRm_set_msg_idx(index);
         mMsg_Get_MsgDataAddressAndSize(index, &addr, &size);
+
+#ifdef TARGET_PC
+        if (addr == 0 || size == 0) {
+            printf("[MSG] LoadMsgData FAIL idx=%d addr=0x%x size=0x%x\n", index, addr, size);
+        }
+#endif
 
         if (addr != 0 && size != 0) {
             u32 aligned_addr = ALIGN_PREV(addr, 32);
@@ -378,6 +441,11 @@ static int mMsg_LoadMsgData(mMsg_Data_c* msg_data, int index, int cut) {
 }
 
 extern int mMsg_ChangeMsgData(mMsg_Window_c* msg_p, int index) {
+#ifdef TARGET_PC
+    if (index < 0 || index >= MSG_MAX) {
+        printf("[MSG] ChangeMsgData FAIL idx=%d out of range\n", index);
+    }
+#endif
     if (index >= 0 && index < MSG_MAX && mMsg_LoadMsgData(msg_p->msg_data, index, FALSE)) {
         msg_p->end_text_cursor_idx = 0;
         mMsg_Clear_CursolIndex(msg_p);

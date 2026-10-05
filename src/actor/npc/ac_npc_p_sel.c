@@ -12,6 +12,7 @@
 #include "m_vibctl.h"
 #include "libultra/libultra.h"
 #include "dolphin/os/OSRtc.h"
+#include <stdio.h>
 
 enum {
     aNPS_TALK_CHK_SETUP_SOUND,
@@ -60,6 +61,9 @@ static u8 aNPS_sound_mode[] = { Config_SOUND_MODE_STEREO, Config_SOUND_MODE_MONO
 static u8 aNPS_voice_mode[] = { Config_VOICE_MODE_ANIMALESE, Config_VOICE_MODE_CLICK, Config_VOICE_MODE_SILENT };
 
 static void aNPS_actor_ct(ACTOR* actorx, GAME* game) {
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL] actor ct ENTERED\n"); }
+#endif
     // clang-format off
     static aNPC_ct_data_c ct_data = {
         &aNPS_actor_move,

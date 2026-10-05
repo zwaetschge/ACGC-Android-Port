@@ -6,6 +6,8 @@
 
 #ifdef TARGET_PC
 #include "dolphin/pad.h"
+/* Preserve access to the original OSContPad/OSContStatus errno members. */
+#undef errno
 #endif
 
 static int frame = 0;
@@ -408,6 +410,12 @@ extern void padmgr_RequestPadData(pad_t* pad, int flag) {
     padmgr_UpdatePC();
 #endif
     padmgr_RequestPadData_NonLock(pad, flag);
+#ifdef TARGET_PC
+    if (flag && pad != NULL && pad[0].on.button != 0) {
+        printf("[PAD2] gamepad on=%04x now=%04x last=%04x\n",
+               pad[0].on.button, pad[0].now.button, pad[0].last.button);
+    }
+#endif
     padmgr_UnlockContData();
 }
 

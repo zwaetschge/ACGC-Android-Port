@@ -12,6 +12,7 @@
 #include "m_bgm.h"
 #include "m_timeIn_ovl.h"
 #include "dolphin/os/OSRtc.h"
+#include <stdio.h>
 
 enum {
     aNPS2_TALK_SETUP_YURE,
@@ -87,6 +88,9 @@ static void aNPS2_change_talk_proc(NPC_P_SEL2_ACTOR* p_sel2, GAME_PLAY* play, in
 static u8 static_str[mChoice_CHOICE_STRING_LEN * mChoice_CHOICE_NUM];
 
 static void aNPS2_actor_ct(ACTOR* actorx, GAME* game) {
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL2] actor ct ENTERED\n"); }
+#endif
     // clang-format off
     static aNPC_ct_data_c ct_data = {
         &aNPS2_actor_move,
@@ -155,6 +159,9 @@ static void aNPS2_actor_ct(ACTOR* actorx, GAME* game) {
         }
 
         p_sel2->start_flag = FALSE;
+#ifdef TARGET_PC
+        { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL2] actor ct: player_sum=%d looks=%d\n", p_sel2->player_sum, mNpc_GetNpcLooks(actorx)); }
+#endif
     }
 }
 
@@ -175,6 +182,17 @@ static void aNPS2_actor_move(ACTOR* actorx, GAME* game) {
     GAME_PLAY* play = (GAME_PLAY*)game;
 
     CLIP(npc_clip)->move_proc(actorx, game);
+
+#ifdef TARGET_PC
+    { extern int g_pc_verbose;
+      static int s_tick = 0;
+      if (g_pc_verbose && (++s_tick % 120) == 0) {
+        NPC_ACTOR* n = (NPC_ACTOR*)actorx;
+        printf("[PSEL2] move: act.idx=%d act.step=%d anim=%d loop=%d talk_end=%d start=%d talk_idx=%d\n",
+               n->action.idx, n->action.step, n->draw.main_animation_state, n->draw.loop_flag,
+               p_sel2->talk_end_flag, p_sel2->start_flag, p_sel2->talk_idx);
+      } }
+#endif
 
     if (p_sel2->start_flag == TRUE && aNPS2_setup_game_start(p_sel2, play) == TRUE) {
         p_sel2->start_flag = FALSE;

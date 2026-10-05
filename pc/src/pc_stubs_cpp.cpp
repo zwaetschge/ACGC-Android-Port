@@ -17,7 +17,10 @@ int JSURandomOutputStream::getAvailable() const {
 }
 
 int JSURandomOutputStream::skip(s32 amount) {
-    int s = this->seekPos(amount, SEEK_CUR);
+    /* explicit cast: on hosted builds SEEK_CUR is the stdio int macro,
+     * not the JSUStreamSeekFrom enumerator (clang, unlike gcc -fpermissive,
+     * rejects the implicit int -> enum conversion) */
+    int s = this->seekPos(amount, (JSUStreamSeekFrom)SEEK_CUR);
     return s;
 }
 

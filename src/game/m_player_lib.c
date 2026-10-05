@@ -3331,7 +3331,7 @@ extern int mPlib_Check_scoop_after(GAME* game, xyz_t* pos_p, mActor_name_t* item
 
 extern int mPlib_Check_scene_able_change_camera_pos(void) {
     if (mFI_CheckFieldData()) {
-#if PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
         /* C-stick camera now works in every scene */
         return TRUE;
 #else

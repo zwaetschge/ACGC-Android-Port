@@ -19,6 +19,9 @@ GLuint pc_texture_pack_lookup(const void* data, int data_size,
 
 int pc_texture_pack_active(void);
 
+/* Minification filter for HD replacements (uses their mip chain). */
+GLenum pc_texture_pack_min_filter(unsigned int gx_filter);
+
 #ifdef __cplusplus
 }
 #endif

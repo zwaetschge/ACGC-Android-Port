@@ -498,7 +498,7 @@ static void Camera2_Get_GoalDistanceAndDirection(GAME_PLAY* play, f32* dist, s_x
     *dist = distance_array[main_index];
     *dir = direction_array[main_index];
 
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     /* C-stick camera now works in every scene */
     if (main_index == CAMERA2_PROCESS_NORMAL) {
 #else
@@ -993,7 +993,7 @@ static void Camera2_setup_main_Wade(GAME_PLAY* play) {
     Camera2_setup_main_Base(play);
     play->camera.requested_main_index_priority = 9;
 
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     /* Reset any outdoor C-stick camera changes instead of a weird double transition */
     if (!mPlib_IsWadeDisabled()){
         play->camera.indoor_distance_addition_idx = 1;

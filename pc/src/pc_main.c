@@ -12,6 +12,10 @@
 #include "pc_profiler.h"
 #include "m_kankyo.h"
 
+#ifdef TARGET_ANDROID
+#include "android_glue.h"
+#endif
+
 /* prefer discrete GPU on laptops */
 #ifdef _WIN32
 __declspec(dllexport) unsigned long NvOptimusEnablement = 1;
@@ -50,9 +54,16 @@ void pc_platform_init(void) {
         exit(1);
     }
 
+#ifdef TARGET_ANDROID
+    /* Android: OpenGL ES 3 context (the renderer subset is ES3 compatible) */
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+#else
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+#endif
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 #ifdef PC_ENHANCEMENTS
@@ -66,11 +77,16 @@ void pc_platform_init(void) {
         Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
         int win_w = g_pc_settings.window_width;
         int win_h = g_pc_settings.window_height;
+#ifdef TARGET_ANDROID
+        /* SDL requests immersive Android system UI and the full drawable. */
+        flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+#else
         if (g_pc_settings.fullscreen == 1) {
             flags |= SDL_WINDOW_FULLSCREEN;
         } else if (g_pc_settings.fullscreen == 2) {
             flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
         }
+#endif
         g_pc_window = SDL_CreateWindow(
             PC_WINDOW_TITLE,
             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -91,6 +107,7 @@ void pc_platform_init(void) {
         exit(1);
     }
 
+#ifndef TARGET_ANDROID
     if (!gladLoadGL((GLADloadfunc)SDL_GL_GetProcAddress)) {
         fprintf(stderr, "gladLoadGL failed\n");
         SDL_GL_DeleteContext(g_pc_gl_context);
@@ -98,8 +115,15 @@ void pc_platform_init(void) {
         SDL_Quit();
         exit(1);
     }
+#endif
 
+#ifdef TARGET_ANDROID
+    /* Present on vsync: unthrottled swaps make the compositor queue several
+     * frames late (FrameIsLate: queued_frames >= 2). Timer pacing stays 60 Hz. */
+    SDL_GL_SetSwapInterval(1);
+#else
     SDL_GL_SetSwapInterval(g_pc_settings.vsync);
+#endif
 
     pc_platform_update_window_size();
 
@@ -258,6 +282,10 @@ static int pc_parse_rain_intensity(const char* text) {
 }
 
 int main(int argc, char* argv[]) {
+#ifdef TARGET_ANDROID
+    android_bootstrap(); /* chdir to app storage, log files */
+#endif
+
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             printf("Usage: AnimalCrossing [options]\n");
@@ -333,6 +361,7 @@ int main(int argc, char* argv[]) {
 
     /* Redirect stdout/stderr to NUL unless verbose — unbuffered terminal writes
      * are extremely slow on Windows and tank FPS. */
+#ifndef TARGET_ANDROID
     if (!g_pc_verbose && !g_pc_profile_enabled) {
 #ifdef _WIN32
         freopen("NUL", "w", stdout);
@@ -345,6 +374,7 @@ int main(int argc, char* argv[]) {
         setvbuf(stdout, NULL, _IONBF, 0);
         setvbuf(stderr, NULL, _IONBF, 0);
     }
+#endif
 
     /* exe image range for seg2k0 — BSS can overlap N64 segment addresses */
 #ifdef _WIN32

@@ -164,12 +164,43 @@ u32 PADRead(PADStatus* status) {
         status[0].triggerRight = pad_trigger_value(pb->r);
     }
 
+#ifdef TARGET_ANDROID
+    /* On-screen touch controls: GC button bits and stick values from the overlay */
+    {
+        extern volatile int g_android_touch_buttons;
+        extern volatile int g_android_touch_stick_x, g_android_touch_stick_y;
+        extern volatile int g_android_touch_cstick_x, g_android_touch_cstick_y;
+        buttons |= (u16)g_android_touch_buttons;
+        if (g_android_touch_stick_x || g_android_touch_stick_y) {
+            stickX = (s8)g_android_touch_stick_x;
+            stickY = (s8)g_android_touch_stick_y;
+        }
+        if (g_android_touch_cstick_x || g_android_touch_cstick_y) {
+            cstickX = (s8)g_android_touch_cstick_x;
+            cstickY = (s8)g_android_touch_cstick_y;
+        }
+    }
+#endif
+
     status[0].button = buttons;
     status[0].stickX = stickX;
     status[0].stickY = stickY;
     status[0].substickX = cstickX;
     status[0].substickY = cstickY;
     status[0].err = 0; /* PAD_ERR_NONE */
+
+    /* Android input diagnostic: log every button-state change + SDL focus/space state */
+    {
+        extern SDL_Window* g_pc_window;
+        static u16 s_last_btn = 0xFFFF;
+        if (buttons != s_last_btn) {
+            printf("[PAD] btn=%04x stick=(%d,%d) focus=%d space=%d bindA=%d\n",
+                   buttons, stickX, stickY,
+                   g_pc_window ? ((SDL_GetWindowFlags(g_pc_window) & SDL_WINDOW_INPUT_FOCUS) != 0) : -1,
+                   (int)keys[SDL_SCANCODE_SPACE], (int)g_pc_keybindings.a);
+            s_last_btn = buttons;
+        }
+    }
 
     return PAD_CHAN0_BIT; /* Controller 1 connected */
 }

@@ -4,6 +4,15 @@
 #include "m_player_lib.h"
 #include "ac_birth_control.h"
 
+#ifdef TARGET_ANDROID
+#define PC_DEFAULT_LANGUAGE "de-DE"
+#else
+#define PC_DEFAULT_LANGUAGE "default"
+#endif
+
+/* EUR translation profile: translations/<lang>/ (msg.bin, *.<lang>.arc, assets/) */
+static char g_pc_language[32] = PC_DEFAULT_LANGUAGE;
+
 PCSettings g_pc_settings = {
     .window_width  = PC_SCREEN_WIDTH,
     .window_height = PC_SCREEN_HEIGHT,
@@ -66,6 +75,10 @@ static const char* DEFAULT_SETTINGS =
     "# Master output volume as a percentage (0-100)\n"
     "master_volume = 100\n"
     "\n"
+    "[Localization]\n"
+    "# default = English (USA); de-DE / fr-FR / it-IT / es-ES / en-EU use translations/<lang>/\n"
+    "language = " PC_DEFAULT_LANGUAGE "\n"
+    "\n"
     "[Input]\n"
     "# Gamepad stick deadzones as a percentage (0-40)\n"
     "stick_deadzone = 12\n"
@@ -86,6 +99,12 @@ static void trim_end(char* s) {
 
 static void apply_setting(const char* key, const char* value) {
     int val = atoi(value);
+
+    if (strcmp(key, "language") == 0) {
+        strncpy(g_pc_language, value, sizeof(g_pc_language) - 1);
+        g_pc_language[sizeof(g_pc_language) - 1] = '\0';
+        return;
+    }
 
     if (strcmp(key, "window_width") == 0) {
         if (val >= 640) g_pc_settings.window_width = val;
@@ -203,6 +222,10 @@ void pc_settings_save(void) {
     fprintf(f, "[Audio]\n");
     fprintf(f, "# Master output volume as a percentage (0-100)\n");
     fprintf(f, "master_volume = %d\n", g_pc_settings.master_volume);
+    fprintf(f, "\n");
+    fprintf(f, "[Localization]\n");
+    fprintf(f, "# default = English (USA); de-DE / fr-FR / it-IT / es-ES / en-EU use translations/<lang>/\n");
+    fprintf(f, "language = %s\n", g_pc_language);
     fprintf(f, "\n");
     fprintf(f, "[Input]\n");
     fprintf(f, "# Gamepad stick deadzones as a percentage (0-40)\n");
@@ -394,4 +417,18 @@ void pc_settings_load(void) {
            SETTINGS_FILE, g_pc_settings.window_width, g_pc_settings.window_height,
            g_pc_settings.fullscreen, g_pc_settings.vsync, g_pc_settings.max_fps, g_pc_settings.msaa,
            g_pc_settings.preload_textures, g_pc_settings.borderless_acres);
+}
+
+const char* pc_settings_get_language(void) {
+    return g_pc_language;
+}
+
+const char* pc_settings_get_translations_dir(void) {
+    return "translations";
+}
+
+int pc_settings_is_eur_locale(void) {
+    return strcmp(g_pc_language, "en-EU") == 0 || strcmp(g_pc_language, "fr-FR") == 0 ||
+           strcmp(g_pc_language, "de-DE") == 0 || strcmp(g_pc_language, "it-IT") == 0 ||
+           strcmp(g_pc_language, "es-ES") == 0;
 }

@@ -7,6 +7,7 @@
 #include "PR/gbi.h"
 #include "pc_assets.h"
 #include "pc_disc.h"
+#include "pc_settings.h"
 
 extern int g_pc_verbose;
 
@@ -84,6 +85,20 @@ void pc_load_asset(const char* bin_path, void* dest, unsigned int size,
     if (rom_src != SRC_NONE) {
         u8* rom = (rom_src == SRC_REL) ? g_rel_data : g_dol_data;
         if (rom) { memcpy(dest, rom + rom_off, size); loaded = 1; }
+    }
+    /* Localized override: translations/<lang>/<bin_path> */
+    if (bin_path) {
+        const char* lang = pc_settings_get_language();
+        if (lang[0] != '\0' && strcmp(lang, "default") != 0) {
+            char localized[768];
+            FILE* f;
+            snprintf(localized, sizeof(localized), "%s/%s/%s", pc_settings_get_translations_dir(), lang, bin_path);
+            f = fopen(localized, "rb");
+            if (f) {
+                if (fread(dest, 1, size, f) > 0) loaded = 1;
+                fclose(f);
+            }
+        }
     }
     /* Fallback to .bin file */
     if (!loaded && bin_path) {

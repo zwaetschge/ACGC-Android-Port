@@ -198,6 +198,10 @@ static void aNPC_dma_regist_cloth_data(mActor_name_t item) {
                 cloth->palette_bank.state = 1;
             }
         }
+
+#ifdef TARGET_PC
+        { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL2] cloth regist: item=%d idx=%d\n", (int)item, idx); }
+#endif
     }
 }
 
@@ -229,9 +233,11 @@ static void aNPC_keep_cloth_data_area(Object_Exchange_c* exc) {
     int bank_id = exc->bank_idx;
     Object_Bank_c* bank = exc->banks + bank_id;
     int i;
+    int secured = 0;
 
     for (i = 0; i < aNPC_CTRL_CLOTH_NUM; i++) {
         if (mSc_secure_exchange_keep_bank(exc, 0, aNPC_CLOTH_TEX_SIZE + aNPC_CLOTH_PAL_SIZE) != NULL) {
+            secured++;
             cloth->texture_bank.size = aNPC_CLOTH_TEX_SIZE;
             cloth->texture_bank.ram_start = bank->ram_start;
             cloth->texture_bank.dma_start = bank->ram_start;
@@ -257,6 +263,10 @@ static void aNPC_keep_cloth_data_area(Object_Exchange_c* exc) {
 
         cloth++;
     }
+
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL2] keep_cloth: %d/%d cloth banks secured\n", secured, aNPC_CTRL_CLOTH_NUM); }
+#endif
 }
 
 static void aNPC_rebuild_cloth_data(void) {

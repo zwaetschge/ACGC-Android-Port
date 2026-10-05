@@ -1,3 +1,6 @@
+#ifdef TARGET_ANDROID
+#include "pc_ui.h"
+#endif
 #include "m_tag_ovl.h"
 
 #include "m_common_data.h"
@@ -1183,6 +1186,14 @@ static void mTG_set_hand_pos(Submenu* submenu, f32* pos, int table, int idx) {
     f32 pos_x = data_p->col_pos[col];
 
     pos_x += ofs;
+#ifdef TARGET_ANDROID
+    if (submenu->overlay->inventory_ovl != NULL &&
+        submenu->overlay->menu_info[mSM_OVL_INVENTORY].data0 == mSM_IV_OPEN_NORMAL &&
+        (table == mTG_TABLE_ITEM || table == mTG_TABLE_MAIL || table == mTG_TABLE_MONEY ||
+         table == mTG_TABLE_PLAYER || table == mTG_TABLE_BG || table == mTG_TABLE_WCHANGE ||
+         table == mTG_TABLE_INVENTORY_WC_ORG || table == mTG_TABLE_COLLECT))
+        pos_x *= pc_ui_width_ratio();
+#endif
     pos[0] = pos_x;
 
     row = idx / data_p->col_num;
@@ -4326,7 +4337,7 @@ static int mTG_mark_enable_check(int menu_type, int param, int table, u8 field_t
                             break;
                         case mTG_TABLE_MAIL:
                             /* mail can be deleted indoors too */
-                        #ifndef PC_ENHANCEMENTS
+                        #if !defined(PC_ENHANCEMENTS) && !defined(TARGET_ANDROID)
                             if (field_type == mFI_FIELDTYPE2_FG) 
                         #endif
                             {

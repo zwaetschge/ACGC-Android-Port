@@ -12,10 +12,16 @@ static int mChoice_Main_Normal_SetChoice(mChoice_c* choice, GAME* game) {
 
     if (chkTrigger(BUTTON_A)) {
         mChoice_determimation_set(choice);
+#ifdef TARGET_PC
+        { extern int g_pc_verbose; if (g_pc_verbose) printf("[CHOICE] confirm A: idx=%d num=%d\n", choice->selected_choice_idx, choice->data.choice_num); }
+#endif
         res = TRUE;
     } else if (choice->no_b_flag && chkTrigger(BUTTON_B)) {
         choice->selected_choice_idx = choice->data.choice_num - 1;
         mChoice_determimation_set(choice);
+#ifdef TARGET_PC
+        { extern int g_pc_verbose; if (g_pc_verbose) printf("[CHOICE] confirm B: idx=%d num=%d\n", choice->selected_choice_idx, choice->data.choice_num); }
+#endif
         res = TRUE;
     } else {
         f32 percent = gamePT->mcon.adjusted_pY;
@@ -118,6 +124,9 @@ static int mChoice_Main_Normal_SetChoice(mChoice_c* choice, GAME* game) {
             *selected_idx_p = choice->data.choice_num - 1;
         } else {
             if (cursor_sfx) {
+#ifdef TARGET_PC
+                { extern int g_pc_verbose; if (g_pc_verbose) printf("[CHOICE] cursor -> %d\n", *selected_idx_p); }
+#endif
                 mChoice_sound_CURSOL();
             }
         }
@@ -140,6 +149,9 @@ static void mChoice_Main_Normal(mChoice_c* choice, GAME* game) {
 }
 
 static void mChoice_MainSetup_Normal(mChoice_c* choice, GAME* game) {
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; if (g_pc_verbose) printf("[CHOICE] window open: num=%d sel=%d\n", choice->data.choice_num, choice->selected_choice_idx); }
+#endif
     choice->scale = 1.0f;
     choice->timer = 0.0f;
     choice->requested_main_index = -1;

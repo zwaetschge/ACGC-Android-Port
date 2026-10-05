@@ -23,6 +23,11 @@ extern int g_pc_model_viewer;
 #include "GBA/gba.h"
 #include "m_vibctl.h"
 
+#ifdef TARGET_PC
+/* SDL's libc headers define errno; the original controller struct uses that name. */
+#undef errno
+#endif
+
 GAME* gamePT = NULL;
 
 static u16 last_button[MAXCONTROLLERS];

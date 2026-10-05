@@ -125,6 +125,9 @@ static void aAL_actor_dt(ACTOR* actor, GAME* game) {
   ANIMAL_LOGO_ACTOR* logo_actor = (ANIMAL_LOGO_ACTOR*)actor;
 
 #ifdef TARGET_PC
+  { extern int g_pc_verbose; if (g_pc_verbose) printf("[LOGO] actor_dt: demo_no=%d\n", mEv_CheckTitleDemo()); }
+#endif
+#ifdef TARGET_PC
   /* Stop blocking pause once the title actor is gone. */
   { extern int g_pc_title_main_menu_visible;
     g_pc_title_main_menu_visible = 0; }
@@ -179,6 +182,9 @@ static void aAL_title_decide_p_sel_npc() {
   }
   
   idx = mNpc_SearchAnimalinfo(Save_Get(animals), npc_name, ANIMAL_NUM_MAX);
+#ifdef TARGET_PC
+  { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL2] title decide_p_sel_npc: npc=%d idx=%d\n", (int)npc_name, idx); }
+#endif
   mNpc_RegistEventNpc(SP_NPC_P_SEL2, npc_name, npc_name, Save_Get(animals[idx].cloth));
 }
 

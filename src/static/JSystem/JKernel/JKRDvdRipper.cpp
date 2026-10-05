@@ -404,7 +404,7 @@ static u8* nextSrcData(u8* nowData) {
         }
         // Oopsies, forgot to call the function
 #ifndef FIXES
-        if (JKRDvdRipper::isErrorRetry == false) {
+        if (JKRDvdRipper::isErrorRetry == nullptr) {
             return nullptr;
         }
 #else

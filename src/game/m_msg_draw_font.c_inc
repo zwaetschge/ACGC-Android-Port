@@ -30,6 +30,9 @@ static void mMsg_draw_font(mMsg_Window_c* msg_p, GAME* game) {
   scale.y = msg_p->text_scale;
 
   pos.x = msg_p->center_x - (96.0f * scale.x);
+#ifdef TARGET_ANDROID
+  pos.x -= 96.0f * (pc_ui_width_ratio() - 1.0f) * scale.x;
+#endif
   pos.y = msg_p->center_y - (32.0f * scale.y);
 
   if ((msg_p->status_flags & mMsg_STATUS_FLAG_VOICE_ENTRY)) {

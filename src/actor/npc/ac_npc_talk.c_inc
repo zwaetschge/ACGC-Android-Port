@@ -556,12 +556,18 @@ static void aNPC_talk_request_event_npc(ACTOR* actorx, GAME* game) {
     if ((mDemo_Check(mDemo_TYPE_SPEAK, actorx) == TRUE || mDemo_Check(mDemo_TYPE_SPEECH, actorx) == TRUE ||
          mDemo_Check(mDemo_TYPE_TALK, actorx) == TRUE) &&
         !mDemo_Check_ListenAble()) {
+#ifdef TARGET_PC
+        { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL] event_talk: setup_talk_start (demo active)\n"); }
+#endif
         aNPC_setup_talk_start(nactorx, game);
     } else {
         GAME_PLAY* play = (GAME_PLAY*)game;
 
         if (play->submenu.process_status == mSM_PROCESS_WAIT && play->submenu.wait_timer == 0) {
             if (nactorx->talk_info.talk_request_proc != NULL) {
+#ifdef TARGET_PC
+                { extern int g_pc_verbose; if (g_pc_verbose) printf("[PSEL] event_talk: calling talk_request_proc\n"); }
+#endif
                 (*nactorx->talk_info.talk_request_proc)(actorx, game);
             } else {
                 mDemo_Request(mDemo_TYPE_TALK, actorx, NULL);
@@ -643,6 +649,16 @@ static void aNPC_talk_request_normal_npc(ACTOR* actorx, GAME* game) {
 
 static void aNPC_talk_request_check(ACTOR* actorx, GAME* game) {
     NPC_ACTOR* nactorx = (NPC_ACTOR*)actorx;
+
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; static int s_talkchk = 0;
+      if (g_pc_verbose && (s_talkchk++ % 120) == 0) {
+        printf("[PSEL] talk_check: npc=%d skip=%d cond=%d hide=%d td=%d act=%d\n",
+               (int)actorx->npc_id, nactorx->condition_info.demo_flg & aNPC_COND_DEMO_SKIP_TALK_CHECK,
+               nactorx->condition_info.talk_condition, nactorx->condition_info.hide_flg,
+               mEv_CheckTitleDemo(), nactorx->action.idx);
+      } }
+#endif
 
     if ((nactorx->condition_info.demo_flg & aNPC_COND_DEMO_SKIP_TALK_CHECK) == 0 &&
         nactorx->condition_info.talk_condition == aNPC_TALK_TYPE_NONE && !nactorx->condition_info.hide_flg) {

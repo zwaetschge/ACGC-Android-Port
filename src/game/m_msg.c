@@ -1,3 +1,6 @@
+#ifdef TARGET_ANDROID
+#include "pc_ui.h"
+#endif
 #include "m_msg.h"
 
 #include "main.h"
@@ -11,6 +14,8 @@
 #include "sys_matrix.h"
 #ifdef TARGET_PC
 #include "pc_bswap.h"
+#include "pc/include/pc_msg_eur.h"
+#include "pc/include/pc_settings.h"
 #endif
 
 static u32 Msg_table_rom_start = 0;
@@ -102,6 +107,9 @@ extern void mMsg_aram_init() {
 }
 
 extern void mMsg_aram_init2() {
+#ifdef TARGET_PC
+    pc_msg_eur_ensure_loaded();  /* prime the EUR loader if language is set */
+#endif
     Msg_table_rom_start = JW_GetAramAddress(RESOURCE_MESSAGE_TABLE);
     Msg_rom_start = JW_GetAramAddress(RESOURCE_MESSAGE);
 }
@@ -124,6 +132,25 @@ extern void mMsg_debug_draw(gfxprint_t* gfxprint) {
 }
 
 extern void mMsg_Main(GAME* game) {
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; static int s_msg = 0;
+      if (g_pc_verbose && (s_msg++ % 60) == 0) {
+        mMsg_Window_c* w = &mMsg_window;
+        printf("[MSG] main=%d req=%d draw=%d loaded=%d scale=%.2f t=%.0f msg_no=%d\n",
+               w->main_index, w->requested_main_index, w->draw_flag, w->data_loaded, w->window_scale, w->timer,
+               w->msg_data != NULL ? w->msg_data->msg_no : -1);
+        if (w->msg_data != NULL) {
+            int idx = w->end_text_cursor_idx;
+            u8* data = w->msg_data->text_buf.data;
+            if (idx >= 0 && idx < sizeof(w->msg_data->text_buf.data) - 1) {
+                printf("[MSGC] start=%d end=%d code=%02x,%02x flags=%x cancel=%d timer=%.1f choice=%d selected=%d\n",
+                       w->start_text_cursor_idx, idx, data[idx], data[idx + 1],
+                       w->status_flags, w->cancel_flag, w->cursor_timer,
+                       w->choice_window.main_index, w->choice_window.selected_choice_idx);
+            }
+        }
+      } }
+#endif
     mMsg_Main_Window(&mMsg_window, game);
     mChoice_Main(&mMsg_window.choice_window, game);
 }

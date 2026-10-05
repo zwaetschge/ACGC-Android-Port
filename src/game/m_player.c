@@ -1453,7 +1453,7 @@ static void Player_actor_main_Demo_get_golden_item(ACTOR*, GAME*);
 static void Player_actor_main_Demo_get_golden_item2(ACTOR*, GAME*);
 static void Player_actor_main_Demo_get_golden_axe_wait(ACTOR*, GAME*);
 
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
 
     static int WrapToolSlot(int slot) {
         if (slot < 0) {
@@ -1729,7 +1729,7 @@ extern void Player_actor_move(ACTOR* actorx, GAME* game) {
     (*proc[idx])(actorx, game);
     Player_actor_move_other_func2(actorx, game); //
 
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     Player_actor_check_and_switch_tool(game);
 #endif
 }

@@ -289,6 +289,22 @@ static int find_disc_image(char* out_path, int out_sz) {
     static const char* dirs[] = { ".", "orig", "rom", NULL };
     int d;
 
+    /* deterministic: the embedded image (if extracted) always wins over
+     * arbitrary imports sitting in rom/ — an NKit import would pass
+     * gcm_verify but serve garbage data at the original disc offsets */
+    {
+        static const char* pref[] = { "rom/GAFE01.iso", "GAFE01.iso", NULL };
+        int i;
+        for (i = 0; pref[i]; i++) {
+            FILE* fp = fopen(pref[i], "rb");
+            if (fp) {
+                fclose(fp);
+                snprintf(out_path, out_sz, "%s", pref[i]);
+                return 1;
+            }
+        }
+    }
+
     for (d = 0; dirs[d]; d++) {
         DIR* dp = opendir(dirs[d]);
         struct dirent* ent;

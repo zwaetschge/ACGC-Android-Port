@@ -272,6 +272,13 @@ static int aNPC_setupNpc_check(s8 idx, mActor_name_t name) {
         ret = TRUE;
     }
 
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; static int s_chk = 0;
+      if (g_pc_verbose && (s_chk++ % 60) == 0) {
+        printf("[PSEL2] setupNpc_check: name=%d res=%d\n", (int)name, res);
+      } }
+#endif
+
     return ret;
 }
 

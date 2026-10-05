@@ -63,7 +63,11 @@ static void mMsg_DrawWindowTurnButton(mMsg_Window_c* msg_p, GAME* game, int mode
     mFont_SetMarkChar(
       game,
       mFont_MARKTYPE_NEXT,
+#ifdef TARGET_ANDROID
+      257.0f + 97.0f * (pc_ui_width_ratio() - 1.0f), 136.0f,
+#else
       257.0f, 136.0f,
+#endif
       msg_p->continue_button_color.r, msg_p->continue_button_color.g, msg_p->continue_button_color.b, msg_p->continue_button_color.a,
       FALSE,
       1.0f, 1.0f,
@@ -72,36 +76,55 @@ static void mMsg_DrawWindowTurnButton(mMsg_Window_c* msg_p, GAME* game, int mode
   }
 }
 
+#ifdef TARGET_ANDROID
+/* Resize the bubble independently from its text and nameplate. */
+static void mMsg_WideMatrix(GAME* game, int mode, float scale_x, float offset_x, int restore) {
+  GRAPH* graph = game->graph;
+  if (restore) {
+    Matrix_pull();
+  } else {
+    Matrix_push();
+    Matrix_translate(offset_x * 16.0f, 0.0f, 0.0f, MTX_MULT);
+    Matrix_scale(scale_x, 1.0f, 1.0f, MTX_MULT);
+  }
+  OPEN_DISP(graph);
+  if (mode == mFont_MODE_FONT) {
+    gSPMatrix(NOW_FONT_DISP++, _Matrix_to_Mtx_new(graph), G_MTX_MODELVIEW | G_MTX_LOAD | G_MTX_NOPUSH);
+  } else {
+    gSPMatrix(NOW_POLY_OPA_DISP++, _Matrix_to_Mtx_new(graph), G_MTX_MODELVIEW | G_MTX_LOAD | G_MTX_NOPUSH);
+  }
+  CLOSE_DISP(graph);
+}
+#endif
+
 static void mMsg_DrawWindowBody(mMsg_Window_c* msg_p, GAME* game, int mode) {
   GRAPH* graph = game->graph;
-  rgba_t* window_background_color = &msg_p->window_background_color;
-
+  rgba_t* color = &msg_p->window_background_color;
+#ifdef TARGET_ANDROID
+  float ratio = pc_ui_width_ratio();
+  mMsg_WideMatrix(game, mode, ratio, 0.0f, FALSE);
+#endif
   OPEN_DISP(graph);
-
   if (mode == mFont_MODE_FONT) {
     gSPDisplayList(NOW_FONT_DISP++, mMsg_init_disp);
-    gDPSetPrimColor(NOW_FONT_DISP++, 0, 255, window_background_color->r, window_background_color->g, window_background_color->b, window_background_color->a);
+    gDPSetPrimColor(NOW_FONT_DISP++, 0, 255, color->r, color->g, color->b, color->a);
     gSPDisplayList(NOW_FONT_DISP++, con_kaiwa2_modelT);
-
-    if (msg_p->show_actor_name) {
-      mMsg_DrawNameWindow(msg_p, game, mode);
-      mMsg_DrawWindowClientName(msg_p, game, mode);
-    }
-
-    mMsg_DrawWindowTurnButton(msg_p, game, mode);
-  }
-  else {
+  } else {
     gSPDisplayList(NOW_POLY_OPA_DISP++, mMsg_init_disp);
-    gDPSetPrimColor(NOW_POLY_OPA_DISP++, 0, 255, window_background_color->r, window_background_color->g, window_background_color->b, window_background_color->a);
+    gDPSetPrimColor(NOW_POLY_OPA_DISP++, 0, 255, color->r, color->g, color->b, color->a);
     gSPDisplayList(NOW_POLY_OPA_DISP++, con_kaiwa2_modelT);
-
-    if (msg_p->show_actor_name) {
-      mMsg_DrawNameWindow(msg_p, game, mode);
-      mMsg_DrawWindowClientName(msg_p, game, mode);
-    }
-
-    mMsg_DrawWindowTurnButton(msg_p, game, mode);
   }
-
   CLOSE_DISP(graph);
+#ifdef TARGET_ANDROID
+  mMsg_WideMatrix(game, mode, 1.0f, 0.0f, TRUE);
+  mMsg_WideMatrix(game, mode, 1.0f, -99.0f * (ratio - 1.0f), FALSE);
+#endif
+  if (msg_p->show_actor_name) {
+    mMsg_DrawNameWindow(msg_p, game, mode);
+    mMsg_DrawWindowClientName(msg_p, game, mode);
+  }
+#ifdef TARGET_ANDROID
+  mMsg_WideMatrix(game, mode, 1.0f, 0.0f, TRUE);
+#endif
+  mMsg_DrawWindowTurnButton(msg_p, game, mode);
 }

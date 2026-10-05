@@ -355,6 +355,9 @@ static void Game_play_fbdemo_proc(GAME_PLAY* play) {
 extern void play_cleanup(GAME* game) {
     GAME_PLAY* play = (GAME_PLAY*)game;
 
+#ifdef TARGET_PC
+    { extern int g_pc_verbose; if (g_pc_verbose) printf("[PLAY] cleanup: frame=%d demo_no=%d fade=%d wipe=%d\n", play->game_frame, mEv_CheckTitleDemo(), play->fb_fade_type, play->fb_wipe_mode); }
+#endif
     mMsg_dt(game);
     banti_dt();
 
@@ -573,6 +576,13 @@ static void Game_play_move(GAME* game) {
     game->doing_point_specific = 0x8E;
 
     if (!pause) {
+#ifdef TARGET_PC
+        { extern int g_pc_verbose; static int s_gpm = 0;
+          if (g_pc_verbose && (s_gpm++ % 120) == 0) {
+            printf("[MOVE] fb=%d sub=%d pause=%d frame=%d\n", play->fb_mode, play->submenu.process_status, pause,
+                   play->game_frame);
+          } }
+#endif
         game->doing_point = 1;
         Game_play_fbdemo_wipe_proc(play);
         game->doing_point = 2;

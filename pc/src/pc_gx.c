@@ -51,7 +51,7 @@ typedef struct { u8 r, g, b, a; } GXColor;
 /* --- Global GX State --- */
 PCGXState g_gx;
 
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
 /* Aspect correction: factor = gc_aspect/actual_aspect, offset = content left edge in GC coords */
 static float g_aspect_factor = 1.0f;
 static float g_aspect_offset = 0.0f;
@@ -71,6 +71,9 @@ static void pc_gx_update_aspect(void) {
     }
 }
 
+#endif
+
+#ifdef PC_ENHANCEMENTS
 /* EFB capture: keep full-res GL textures from GXCopyTex instead of downsampling to 640x480 */
 #define MAX_EFB_CAPTURES 4
 static struct {
@@ -392,8 +395,10 @@ void pc_gx_begin_frame(void) {
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     /* Masks were changed behind the dirty system; reapply at first flush */
     DIRTY(PC_GX_DIRTY_DEPTH | PC_GX_DIRTY_COLOR_MASK);
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     pc_gx_update_aspect();
+#endif
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     glDisable(GL_SCISSOR_TEST);
     glViewport(0, 0, g_pc_window_w, g_pc_window_h);
     pc_gx_viewport_state_invalidate();
@@ -1206,14 +1211,14 @@ void GXSetProjection(const void* mtx, u32 type) {
     static float last_in[12];
     static int last_type = -1;
     int same = 0;
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     static int last_stretch = -1, last_aspect_active = -1;
     static float last_aspect_factor;
 #endif
 
     pc_gx_flush_if_begin_complete();
     same = (int)type == last_type && memcmp(last_in, mtx, sizeof(last_in)) == 0;
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     same = same && g_pc_widescreen_stretch == last_stretch &&
            g_aspect_active == last_aspect_active &&
            g_aspect_factor == last_aspect_factor;
@@ -1241,7 +1246,7 @@ void GXSetProjection(const void* mtx, u32 type) {
         g_gx.projection_mtx[3][3] = 1.0f;
     }
 
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     /* Widescreen: 0=hor+ (both), 1=stretch (none), 2=UI (ortho only) */
     if (g_pc_widescreen_stretch == 0 ||
         (g_pc_widescreen_stretch == 2 && type == GX_ORTHOGRAPHIC)) {
@@ -1320,7 +1325,7 @@ void GXSetViewport(f32 left, f32 top, f32 wd, f32 ht, f32 nearz, f32 farz) {
     g_gx.viewport[3] = ht;
     g_gx.viewport[4] = nearz;
     g_gx.viewport[5] = farz;
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     {
         float sx = (float)g_pc_window_w / (float)PC_GC_WIDTH;
         float sy = (float)g_pc_window_h / (float)PC_GC_HEIGHT;
@@ -1379,7 +1384,7 @@ void GXSetScissor(u32 left, u32 top, u32 wd, u32 ht) {
     g_gx.scissor[1] = top;
     g_gx.scissor[2] = wd;
     g_gx.scissor[3] = ht;
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     {
         float sx = (float)g_pc_window_w / (float)PC_GC_WIDTH;
         float sy = (float)g_pc_window_h / (float)PC_GC_HEIGHT;
@@ -2043,7 +2048,7 @@ static void pc_gx_copy_tex_execute_impl(void* dest, GXBool clear) {
     if (out_wd <= 0 || out_ht <= 0) return;
     if (out_wd > 4096 || out_ht > 4096) return;
 
-#ifdef PC_ENHANCEMENTS
+#if defined(PC_ENHANCEMENTS) || defined(TARGET_ANDROID)
     /* Scale readback coordinates from GC coords to window resolution */
     float sx = (float)g_pc_window_w / (float)PC_GC_WIDTH;
     float sy = (float)g_pc_window_h / (float)PC_GC_HEIGHT;
@@ -2410,4 +2415,3 @@ void GXReadXfRasMetric(u32* xf_wait_in, u32* xf_wait_out, u32* ras_busy, u32* cl
 /* --- Verify --- */
 void GXSetVerifyLevel(u32 level) { (void)level; }
 void* GXSetVerifyCallback(void* cb) { return NULL; }
-

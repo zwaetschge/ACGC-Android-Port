@@ -727,7 +727,7 @@ static void SetupExternCommentImage(u8* embedded_save_comment_img, u8* dst, u8* 
             ResTIMG* banner_data = (ResTIMG*)banner;
             if (banner_data != nullptr) {
                 u8 banner_fmt;
-                SetupResBanner(banner_data, dst, 0x1800, &size, &banner_fmt);
+                SetupResBanner(banner_data, dst, 0x1800, (size_t*)&size, &banner_fmt); /* u32 == size_t on 32-bit */
                 JKRFileLoader::removeResource(banner_data, nullptr);
                 dst += size;
                 famicomCommon.memcard_game_header.flags1.banner_fmt = banner_fmt;
