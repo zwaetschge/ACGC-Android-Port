@@ -111,9 +111,13 @@ s32 JKRDvdFile::sync() {
     OSReceiveMessage(&this->mDvdMessageQueue, &m, OS_MESSAGE_BLOCK);
     this->mDvdThread = nullptr;
     OSUnlockMutex(&this->mDvdMutex);
-    return (s32)m;
+    return (s32)(intptr_t)m;
 }
 
 void JKRDvdFile::doneProcess(s32 result, DVDFileInfo* info) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+    OSSendMessage(&static_cast<JKRDvdFileInfo*>(info)->mFile->mDvdMessageQueue, (OSMessage)(intptr_t)result, OS_MESSAGE_NOBLOCK);
+#else
     OSSendMessage(&static_cast<JKRDvdFileInfo*>(info)->mFile->mDvdMessageQueue, (OSMessage)result, OS_MESSAGE_NOBLOCK);
+#endif
 }

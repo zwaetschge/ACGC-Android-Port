@@ -34,9 +34,9 @@
  */
 #if defined(_LANGUAGE_C) || defined(_LANGUAGE_C_PLUS_PLUS) || defined(TARGET_PC)
 
-#ifdef TARGET_PC
-/* On PC, types are already defined by types.h / dolphin/types.h via stdint.h.
- * Only define them here if they haven't been defined yet. */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+/* 64-bit PC: fixed-width types (long is 8 bytes). types.h / dolphin/types.h
+ * may already have defined them. */
 #include <stdint.h>
 #include <stddef.h>
 #ifndef _DOLPHIN_TYPES_H_
@@ -60,7 +60,6 @@ typedef float   f32;
 typedef double  f64;
 #endif /* _DOLPHIN_TYPES_H_ */
 #else
-/* N64/GC original types */
 typedef unsigned char       u8;     /* unsigned  8-bit */
 typedef unsigned short      u16;    /* unsigned 16-bit */
 typedef unsigned long       u32;    /* unsigned 32-bit */
@@ -83,9 +82,11 @@ typedef volatile long long          vs64;   /* signed 64-bit */
 
 typedef float   f32;    /* single prec floating point */
 typedef double  f64;    /* double prec floating point */
-#endif /* TARGET_PC */
+#endif /* 64-bit PC */
 
-#ifndef TARGET_PC
+#ifdef TARGET_PC
+#include <stddef.h>
+#else
 #if !defined(_SIZE_T) && !defined(_SIZE_T_) && !defined(_SIZE_T_DEF)
 #define _SIZE_T
 #define _SIZE_T_DEF         /* exeGCC size_t define label */

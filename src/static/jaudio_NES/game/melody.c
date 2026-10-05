@@ -623,8 +623,13 @@ static void Na_MelodyStart(u16 voice, s16 subTrack, const u8* pData);
 
 extern void Na_MelodyInit(void) {
     current_sub_track = 0;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     na_melody_id_hist[0] = (uintptr_t)-1;
     na_melody_id_hist[1] = (uintptr_t)-1;
+#else
+    na_melody_id_hist[0] = 0xFFFFFFFF;
+    na_melody_id_hist[1] = 0xFFFFFFFF;
+#endif
 }
 
 extern void Na_Inst(u16 inst, u8* pData) {
@@ -687,10 +692,14 @@ static void Na_MelodyStart(u16 voice, s16 subTrack, const u8* pData) {
 #endif
     }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     Nap_SetPtr(NA_MAKE_COMMAND(0x10, 0x00, subTrack, 0x00), pData);
 #else
     Nap_SetS32(NA_MAKE_COMMAND(0x10, 0x00, subTrack, 0x00), (u32)(uintptr_t)pData);
+#endif
+#else
+    Nap_SetS32(NA_MAKE_COMMAND(0x10, 0x00, subTrack, 0x00), (u64)pData);
 #endif
     Nap_SetS8(NA_MAKE_COMMAND(0x06, 0x00, subTrack, 0x02), voice);
     Nap_SetS8(NA_MAKE_COMMAND(0x06, 0x00, subTrack, 0x00), 0);
@@ -734,10 +743,14 @@ extern void Na_FurnitureInst(uintptr_t id, u8 inst, u8* melody, u16 angle, f32 d
     u8 pan = angle2pan(angle, dist);
     f32 vol = distance2vol(dist);
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     Nap_SetPtr(NA_MAKE_COMMAND(0x10, 0x02, sub_track, 0x00), melody);
 #else
     Nap_SetS32(NA_MAKE_COMMAND(0x10, 0x02, sub_track, 0x00), (u32)(uintptr_t)melody);
+#endif
+#else
+    Nap_SetS32(NA_MAKE_COMMAND(0x10, 0x02, sub_track, 0x00), (u64)melody);
 #endif
     Nap_SetS8(NA_MAKE_COMMAND(0x06, 0x02, sub_track, 0x02), inst);
     Nap_SetS8(NA_MAKE_COMMAND(0x06, 0x02, sub_track, 0x00), 0);

@@ -8,9 +8,14 @@ extern "C"
 {
 #endif
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 #define OSRoundUp32B(x) (((uintptr_t)(x) + 0x1F) & ~((uintptr_t)0x1F))
 #define OSRoundDown32B(x) (((uintptr_t)(x)) & ~((uintptr_t)0x1F))
+#else
+#define OSRoundUp32B(x) (((u32)(x) + 0x1F) & ~(0x1F))
+#define OSRoundDown32B(x) (((u32)(x)) & ~(0x1F))
+#endif
 #else
 #define OSRoundUp32B(x) (((u32)(x) + 0x1F) & ~(0x1F))
 #define OSRoundDown32B(x) (((u32)(x)) & ~(0x1F))

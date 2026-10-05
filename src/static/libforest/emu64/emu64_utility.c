@@ -5,82 +5,54 @@
 #include "MSL_C/w_math.h"
 
 #ifdef TARGET_PC
-/* Executable image range from pc_main.c — BSS/data can collide with N64 segments */
-extern "C" uintptr_t pc_image_base;
-extern "C" uintptr_t pc_image_end;
-
-#if UINTPTR_MAX > 0xFFFFFFFFu
+#if __SIZEOF_POINTER__ == 8
 #include "pc_gbi_ptr.h"
 
-/* === 64-bit seg2k0 ===
- * On 64-bit, real PC pointers are always above 0x0FFFFFFF. N64 segment
- * addresses are always 0x03XXXXXX-0x0FXXXXXX. However, truncated 64-bit
- * pointers (low 32 bits of a real pointer stored in a u32 Gfx field) can
- * fall ANYWHERE in the 32-bit range, including the segment address range.
- *
- * Strategy: first try segment resolution. If the segment base is 0 (unused
- * segment), try recovering the full pointer from the truncated value using
- * the known image/arena base addresses. */
-uintptr_t emu64::seg2k0(uintptr_t segadr) {
-    /* Full 64-bit pointer — already resolved */
-    if (segadr > 0xFFFFFFFFu) return segadr;
-    /* Zero — can't recover */
-    if (segadr == 0) return 0;
-
-    /* Try N64 segment resolution first (0x03-0x0F range) */
-    if (segadr >= 0x03000000u && segadr <= 0x0FFFFFFFu) {
-        uintptr_t seg = (segadr >> 24) & 0xF;
-        uintptr_t offset = segadr & 0xFFFFFF;
-        if (this->segments[seg] != 0) {
-            this->resolved_addresses++;
-            return this->segments[seg] + offset;
-        }
-        /* Segment base is 0 — this might be a truncated PC pointer,
-         * not a real segment address. Fall through to recovery. */
-    }
-
-    /* Try to recover a full 64-bit pointer from the truncated 32-bit value */
-    uintptr_t recovered = pc_gbi_recover_ptr((unsigned int)segadr);
-    if (recovered != segadr) {
-        /* Successfully recovered — this was a truncated pointer */
-        return recovered;
-    }
-
-    /* Unrecoverable — return as-is (may crash, handled by VEH/signal) */
-    return segadr;
-}
-#else
-/* === 32-bit seg2k0 (Windows) ===
- * On 32-bit, PC pointers can collide with N64 segment addresses (both in
- * 0x03-0x0F range). Use VirtualQuery + page cache to disambiguate. */
-
-#define SEG2K0_PAGE_CACHE_SIZE 32
-static struct { u32 page; u8 committed; } seg2k0_page_cache[SEG2K0_PAGE_CACHE_SIZE];
-static int seg2k0_cache_next = 0;
-
-static int seg2k0_is_committed(u32 addr) {
-    u32 page = addr & ~0xFFF;
-    for (int i = 0; i < SEG2K0_PAGE_CACHE_SIZE; i++) {
-        if (seg2k0_page_cache[i].page == page) {
-            return seg2k0_page_cache[i].committed;
-        }
-    }
-    MEMORY_BASIC_INFORMATION mbi;
-    int committed = 0;
-    if (VirtualQuery((void*)(uintptr_t)addr, &mbi, sizeof(mbi)) > 0 && mbi.State == MEM_COMMIT) {
-        committed = 1;
-    }
-    seg2k0_page_cache[seg2k0_cache_next].page = page;
-    seg2k0_page_cache[seg2k0_cache_next].committed = committed;
-    seg2k0_cache_next = (seg2k0_cache_next + 1) % SEG2K0_PAGE_CACHE_SIZE;
-    return committed;
-}
-
+/* 64-bit: Gwords.w1 is uintptr_t, so display lists carry full pointers and
+   real pointers never fall in the N64 segment range. Values that do are
+   segment references; if their segment is unset, try to recover a pointer
+   that was truncated to 32 bits somewhere on the way. */
 uintptr_t emu64::seg2k0(uintptr_t segadr) {
     if ((segadr >> 28) != 0 || segadr < 0x03000000) {
         return segadr;
     }
 
+    uintptr_t base = this->segments[(segadr >> 24) & 0xF] & ~(uintptr_t)1;
+
+    if (base == 0) {
+        return pc_gbi_recover_ptr((unsigned int)segadr);
+    }
+
+    this->resolved_addresses++;
+    return base + (segadr & 0xFFFFFF);
+}
+#else
+static_assert(sizeof(void*) == sizeof(u32), "seg2k0 pointer resolution requires 32-bit pointers");
+
+/* Executable image range from pc_main.c — BSS/data can collide with N64 segments */
+extern "C" uintptr_t pc_image_base;
+extern "C" uintptr_t pc_image_end;
+extern "C" uintptr_t pc_gbi_unpack_runtime_ptr(unsigned int packed);
+
+uintptr_t emu64::seg2k0(uintptr_t segadr) {
+    uintptr_t odd_ptr = pc_gbi_unpack_runtime_ptr(segadr);
+    if (odd_ptr != 0) {
+        return (u32)odd_ptr;
+    }
+
+    /* Runtime GBI macros tag direct PC pointers in bit 0. Segment references
+       keep the low bit clear so they still resolve through the segment table. */
+    if ((segadr & 1) != 0) {
+        return segadr & ~1u;
+    }
+
+    /* Addresses above the N64 segment range (upper nibble != 0) or below
+       the minimum segment address are definitely raw PC pointers. */
+    if ((segadr >> 28) != 0 || segadr < 0x03000000) {
+        return segadr;
+    }
+
+    /* Check if address falls within the executable image (BSS/data/code). */
     if (segadr >= pc_image_base && segadr < pc_image_end) {
         return segadr;
     }
@@ -94,17 +66,8 @@ uintptr_t emu64::seg2k0(uintptr_t segadr) {
         return segadr;
     }
 
-    uintptr_t resolved = this->segments[seg] + offset;
-
-    if (seg2k0_is_committed((u32)resolved)) {
-        this->resolved_addresses++;
-        return resolved;
-    }
-
-    if (seg2k0_is_committed((u32)segadr)) {
-        return segadr;
-    }
-
+    /* Normal segment resolution path */
+    u32 resolved = base + offset;
     this->resolved_addresses++;
     return resolved;
 }

@@ -2,7 +2,17 @@
 #ifndef PC_PLATFORM_H
 #define PC_PLATFORM_H
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#else
+/* 32-bit required: decomp code (JSystem, emu64) casts pointers to u32 */
+#endif
 #include <stdint.h>
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#else
+#if __SIZEOF_POINTER__ == 8
+#error "This project must be compiled as 32-bit (pointer size != 4 bytes)"
+#endif
+#endif
 
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -25,9 +35,13 @@
 #define PC_SCREEN_HEIGHT  PC_GC_HEIGHT
 #define PC_WINDOW_TITLE   "Animal Crossing"
 
-#if UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8
 /* 64-bit: structs with pointer fields are larger, need more arena space */
 #define PC_MAIN_MEMORY_SIZE   (48 * 1024 * 1024)
+#else
+#define PC_MAIN_MEMORY_SIZE   (24 * 1024 * 1024)
+#endif
 #else
 #define PC_MAIN_MEMORY_SIZE   (24 * 1024 * 1024)
 #endif
@@ -53,15 +67,26 @@
 #include <windows.h>
 #undef near
 #undef far
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #elif defined(__APPLE__)
 #include <signal.h>
 #include <sys/mman.h>
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
 #else
+#endif
+#else
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#include <signal.h>
+#else
+#endif
 #include <sys/mman.h>
 #include <dlfcn.h>
 #include <elf.h>
+#endif
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#include <setjmp.h>
+#else
 #endif
 
 #ifdef __cplusplus
@@ -106,13 +131,17 @@ void pc_platform_shutdown(void);
 void pc_platform_swap_buffers(void);
 int  pc_platform_poll_events(void);
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 /* --- Crash protection (VEH + setjmp/longjmp) --- */
 void pc_crash_protection_init(void);
 void pc_crash_set_jmpbuf(jmp_buf* buf);  /* NULL to disable */
 uintptr_t pc_crash_get_addr(void);
 uintptr_t pc_crash_get_data_addr(void);
 
+#else
+#endif
 /* EXE image range for seg2k0 pointer disambiguation (vs N64 segment addresses) */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 extern uintptr_t pc_image_base;
 extern uintptr_t pc_image_end;
 
@@ -125,6 +154,10 @@ static_assert(sizeof(uintptr_t) == sizeof(void*), "uintptr_t must match pointer 
 _Static_assert(sizeof(u32) == 4, "u32 must be 4 bytes");
 _Static_assert(sizeof(u16) == 2, "u16 must be 2 bytes");
 _Static_assert(sizeof(uintptr_t) == sizeof(void*), "uintptr_t must match pointer size");
+#endif
+#else
+extern unsigned int pc_image_base;
+extern unsigned int pc_image_end;
 #endif
 
 /* --- Model viewer --- */

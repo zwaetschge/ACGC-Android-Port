@@ -30,33 +30,46 @@
 
 #ifdef TARGET_PC
 #include <stdint.h>
-/* On 64-bit PC, Gwords.w1 is uintptr_t so static initializers can store full
- * 64-bit pointers directly. On 32-bit PC, w1 is u32 so we cast through
- * uintptr_t to silence warnings. */
-#if UINTPTR_MAX > 0xFFFFFFFFu
+#if __SIZEOF_POINTER__ == 8
+/* 64-bit PC: Gwords.w1 is uintptr_t, so display lists store full pointers.
+   Real pointers never fall in the N64 segment range (0x03000000-0x0FFFFFFF),
+   so they need no tagging. */
 #define _GBI_STATIC_PTR(s) (uintptr_t)(s)
+#define _GBI_RUNTIME_PTR(s) (uintptr_t)(s)
+#define _GBI_W1(v) (uintptr_t)(v)
 #else
-#define _GBI_STATIC_PTR(s) (unsigned int)(uintptr_t)(s)
+#ifndef _GBI_RUNTIME_PTR_HELPERS
+#define _GBI_RUNTIME_PTR_HELPERS
+_GBI_STATIC_ASSERT(sizeof(void*) == sizeof(unsigned int), "GBI pointer packing requires 32-bit pointers");
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+unsigned int pc_gbi_pack_runtime_ptr(uintptr_t addr, int is_ptr, const char* expr, const char* file, int line);
+uintptr_t pc_gbi_unpack_runtime_ptr(unsigned int packed);
+#ifdef __cplusplus
+}
+#endif
 #endif
 
-/* Macro for runtime writes to Gwords.w1.
- * On 64-bit, w1 is uintptr_t so we must not truncate pointers.
- * On 32-bit, w1 is unsigned int. */
-#if UINTPTR_MAX > 0xFFFFFFFFu
-#define _GBI_SET_W1(g, val) ((g)->words.w1 = (uintptr_t)(val))
-#define _GBI_SET_W1_RAW(g, val) ((g)->words.w1 = (uintptr_t)(val))
-#define _GBI_RUNTIME_PTR(s) (uintptr_t)(s)
-#else
-#define _GBI_SET_W1(g, val) ((g)->words.w1 = (unsigned int)(val))
-#define _GBI_SET_W1_RAW(g, val) ((g)->words.w1 = (unsigned int)(val))
-#define _GBI_RUNTIME_PTR(s) (unsigned int)(uintptr_t)(s)
+/* GCC GNU extension: pointer-to-integer cast in static initializers.
+   Safe on 32-bit where sizeof(void*) == sizeof(unsigned int). */
+#ifndef _GBI_STATIC_PTR
+#define _GBI_STATIC_PTR(s) (unsigned int)(uintptr_t)(s)
 #endif
+/* Runtime display-list commands tag real PC pointers in bit 0. N64 segmented
+   addresses are integer expressions and are left unchanged. */
+#ifndef _GBI_RUNTIME_PTR
+#define _GBI_IS_RUNTIME_PTR_EXPR(s) (__builtin_classify_type(s) == 5 || __builtin_classify_type(s) == 14)
+#define _GBI_RUNTIME_PTR(s) \
+    pc_gbi_pack_runtime_ptr((uintptr_t)(s), _GBI_IS_RUNTIME_PTR_EXPR(s), #s, __FILE__, __LINE__)
+#endif
+#define _GBI_W1(v) (unsigned int)(v)
+#endif /* UINTPTR_MAX */
 #else
+#define _GBI_W1(v) (unsigned int)(v)
 #ifndef _GBI_STATIC_PTR
 #define _GBI_STATIC_PTR(s) (unsigned int)(s)
-#define _GBI_SET_W1(g, val) ((g)->words.w1 = (unsigned int)(val))
-#define _GBI_SET_W1_RAW(g, val) ((g)->words.w1 = (unsigned int)(val))
-#define _GBI_RUNTIME_PTR(s) (unsigned int)(uintptr_t)(s)
 #endif
 #ifndef _GBI_RUNTIME_PTR
 #define _GBI_RUNTIME_PTR(s) (unsigned int)(s)
@@ -1881,18 +1894,11 @@ typedef struct {
 
 /*
  * Generic Gfx Packet
- *
- * On 64-bit PC, w1 is uintptr_t (8 bytes) so it can store full pointers.
- * This makes sizeof(Gwords) == 16 (with 4 bytes of padding between w0
- * and w1 for alignment). Union member structs (Gdma, Gmoveword, etc.)
- * are still 8 bytes and their second-word fields land in the padding
- * area — so on 64-bit, always read w1 through words.w1, never through
- * a union view's second field.
  */
 typedef struct {
 	unsigned int w0;
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
-	uintptr_t w1;    /* Full pointer width on 64-bit PC */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+	uintptr_t w1;    /* full pointer width on 64-bit PC (Gfx is 16 bytes) */
 #else
 	unsigned int w1;
 #endif
@@ -1900,8 +1906,7 @@ typedef struct {
 
 /*
  * This union is the fundamental type of the display list.
- * Originally 64 bits; on 64-bit PC it is 128 bits (16 bytes) because
- * Gwords.w1 is uintptr_t to hold full 64-bit pointers.
+ * It is, by law, exactly 64 bits in size.
  */
 typedef union {
 	Gwords		words;
@@ -1925,10 +1930,6 @@ typedef union {
         long long int	force_structure_alignment;
 } Gfx;
 
-/* GBI_FIXUP_PTR is no longer needed — _GBI_STATIC_PTR now stores full pointers
- * on 64-bit via uintptr_t w1. Kept as no-op for compatibility. */
-#define GBI_FIXUP_PTR(gfx_array, index, ptr) ((void)0)
-
 /*
  * Macros to assemble the graphics display list
  */
@@ -1941,7 +1942,7 @@ typedef union {
 	Gfx *_g = (Gfx *)(pkt);						\
 									\
 	_g->words.w0 = _SHIFTL((c), 24, 8) | _SHIFTL((l), 0, 24);	\
-	_GBI_SET_W1(_g, (s));						\
+	_g->words.w1 = _GBI_RUNTIME_PTR(s);				\
 }
 
 #define	gsDma0p(c, s, l)						\
@@ -1955,7 +1956,7 @@ typedef union {
 									\
 	_g->words.w0 = (_SHIFTL((c), 24, 8) | _SHIFTL((p), 16, 8) |	\
 			_SHIFTL((l), 0, 16));				\
-	_GBI_SET_W1(_g, (s));						\
+	_g->words.w1 = _GBI_RUNTIME_PTR(s);				\
 }
 
 #define	gsDma1p(c, s, l, p)						\
@@ -1970,7 +1971,7 @@ typedef union {
 	Gfx *_g = (Gfx *)(pkt);						\
 	_g->words.w0 = (_SHIFTL((c),24,8)|_SHIFTL(((len)-1)/8,19,5)|	\
 			_SHIFTL((ofs)/8,8,8)|_SHIFTL((idx),0,8));	\
-	_GBI_SET_W1(_g, (adrs));					\
+	_g->words.w1 = _GBI_RUNTIME_PTR(adrs);				\
 }
 #define	gsDma2p(c, adrs, len, idx, ofs)					\
 {{									\
@@ -2007,7 +2008,7 @@ typedef union {
 	Gfx *_g = (Gfx *)(pkt);						\
 	_g->words.w0 =							\
 	  _SHIFTL(G_VTX,24,8)|_SHIFTL((n),12,8)|_SHIFTL((v0)+(n),1,7);	\
-	_GBI_SET_W1(_g, (v));						\
+	_g->words.w1 = _GBI_RUNTIME_PTR(v);				\
 }
 # define	gsSPVertex(v, n, v0)					\
 {{									\
@@ -2077,7 +2078,7 @@ typedef union {
 	Gfx *_g = (Gfx *)(pkt);						\
 									\
 	_g->words.w0 = _SHIFTL((c), 24, 8);				\
-	_GBI_SET_W1(_g, (p0));						\
+	_g->words.w1 = _GBI_W1(p0);				\
 }
 
 #define	gsImmp1(c, p0)							\
@@ -2119,7 +2120,7 @@ typedef union {
 									\
 	_g->words.w0 = (_SHIFTL((c), 24, 8)  | _SHIFTL((p0), 8, 16) |	\
 			_SHIFTL((p1), 0, 8));				\
-	_GBI_SET_W1(_g, (dat));						\
+	_g->words.w1 = _GBI_W1(dat);				\
 }
 
 #define	gsImmp21(c, p0, p1, dat)					\
@@ -2411,7 +2412,7 @@ typedef union {
 									\
 	_g->words.w0 = _SHIFTL(G_CULLDL, 24, 8) |			\
                        ((0x0f & (vstart))*40);				\
-	_GBI_SET_W1_RAW(_g, (0x0f & ((vend)+1))*40);			\
+	_g->words.w1 = _GBI_W1((0x0f & ((vend)+1))*40);		\
 }
 
 #define gsSPCullDisplayList(vstart,vend)				\
@@ -2519,7 +2520,7 @@ typedef union {
 	Gfx *_g = (Gfx *)(pkt);						\
 	_g->words.w0 = (_SHIFTL(G_MODIFYVTX,24,8)|			\
 		        _SHIFTL((where),16,8)|_SHIFTL((vtx)*2,0,16));	\
-	_GBI_SET_W1_RAW(_g, (val));					\
+	_g->words.w1 = _GBI_W1(val);				\
 }
 # define gsSPModifyVertex(vtx, where, val)				\
 {{									\
@@ -2564,7 +2565,7 @@ typedef union {
 {									\
 	Gfx *_g = (Gfx *)(pkt);						\
 	_g->words.w0 = _SHIFTL(G_RDPHALF_1,24,8);			\
-	_GBI_SET_W1(_g, (dl));						\
+	_g->words.w1 = _GBI_RUNTIME_PTR(dl);				\
 	_g = (Gfx *)(pkt);						\
 	_g->words.w0 = (_SHIFTL(G_BRANCH_Z,24,8)|			\
 		        _SHIFTL((vtx)*5,12,12)|_SHIFTL((vtx)*2,0,12));	\
@@ -2593,11 +2594,11 @@ typedef union {
 {									\
 	Gfx *_g = (Gfx *)(pkt);						\
 	_g->words.w0 = _SHIFTL(G_RDPHALF_1,24,8);			\
-	_GBI_SET_W1(_g, (dl));						\
+	_g->words.w1 = _GBI_RUNTIME_PTR(dl);				\
 	_g = (Gfx *)(pkt);						\
 	_g->words.w0 = (_SHIFTL(G_BRANCH_Z,24,8)|			\
 		        _SHIFTL((vtx)*5,12,12)|_SHIFTL((vtx)*2,0,12));	\
-	_GBI_SET_W1_RAW(_g, (zval));					\
+	_g->words.w1 = _GBI_W1(zval);				\
 }
 
 #define	gsSPBranchLessZraw(dl, vtx, zval)				\
@@ -2616,11 +2617,11 @@ typedef union {
 {									\
 	Gfx *_g = (Gfx *)(pkt);						\
 	_g->words.w0 = _SHIFTL(G_RDPHALF_1,24,8);			\
-	_GBI_SET_W1(_g, (uc_dstart));					\
+	_g->words.w1 = _GBI_RUNTIME_PTR(uc_dstart);			\
 	_g = (Gfx *)(pkt);						\
 	_g->words.w0 = (_SHIFTL(G_LOAD_UCODE,24,8)|			\
 			_SHIFTL((int)(uc_dsize)-1,0,16));		\
-	_GBI_SET_W1(_g, (uc_start));					\
+	_g->words.w1 = _GBI_RUNTIME_PTR(uc_start);			\
 }
 
 #define	gsSPLoadUcodeEx(uc_start, uc_dstart, uc_dsize)			\
@@ -2652,7 +2653,7 @@ typedef union {
 	Gfx *_g = (Gfx *)(pkt);						\
 	_g->words.w0 = _SHIFTL(G_DMA_IO,24,8)|_SHIFTL((flag),23,1)|	\
 	  _SHIFTL((dmem)/8,13,10)|_SHIFTL((size)-1,0,12);		\
-	_GBI_SET_W1(_g, (dram));					\
+	_g->words.w1 = _GBI_RUNTIME_PTR(dram);				\
 }
 
 #define	gsSPDma_io(flag, dmem, dram, size)				\
@@ -3082,7 +3083,7 @@ typedef union {
 	Gfx *_g = (Gfx *)(pkt);						\
 									\
 	_g->words.w0 = _SHIFTL(G_SETGEOMETRYMODE, 24, 8);		\
-	_GBI_SET_W1_RAW(_g, (word));					\
+	_g->words.w1 = _GBI_W1(word);				\
 }
 
 #define	gsSPSetGeometryMode(word)					\
@@ -3095,7 +3096,7 @@ typedef union {
 	Gfx *_g = (Gfx *)(pkt);						\
 									\
 	_g->words.w0 = _SHIFTL(G_CLEARGEOMETRYMODE, 24, 8);		\
-	_GBI_SET_W1_RAW(_g, (word));					\
+	_g->words.w1 = _GBI_W1(word);				\
 }
 
 #define	gsSPClearGeometryMode(word)					\
@@ -3110,7 +3111,7 @@ typedef union {
 	Gfx *_g = (Gfx *)(pkt);						\
 	_g->words.w0 = (_SHIFTL(cmd,24,8)|_SHIFTL(32-(sft)-(len),8,8)|	\
 			_SHIFTL((len)-1,0,8));				\
-	_GBI_SET_W1_RAW(_g, (data));					\
+	_g->words.w1 = _GBI_W1(data);				\
 }
 
 #define	gsSPSetOtherMode(cmd, sft, len, data)				\
@@ -3125,7 +3126,7 @@ typedef union {
 									\
 	_g->words.w0 = (_SHIFTL(cmd, 24, 8) | _SHIFTL(sft, 8, 8) |	\
 			_SHIFTL(len, 0, 8));				\
-	_GBI_SET_W1_RAW(_g, (data));					\
+	_g->words.w1 = _GBI_W1(data);				\
 }
 
 #define	gsSPSetOtherMode(cmd, sft, len, data)				\
@@ -3232,7 +3233,7 @@ typedef union {
 									\
 	_g->words.w0 = _SHIFTL(cmd, 24, 8) | _SHIFTL(fmt, 21, 3) |	\
 		       _SHIFTL(siz, 19, 2) | _SHIFTL((width)-1, 0, 12);	\
-	_GBI_SET_W1(_g, (i));						\
+	_g->words.w1 = _GBI_RUNTIME_PTR(i);				\
 }
 
 #define	gsSetImage(cmd, fmt, siz, width, i)				\
@@ -3265,7 +3266,7 @@ typedef union {
 	Gfx *_g = (Gfx *)(pkt);						\
 									\
 	_g->words.w0 = _SHIFTL(G_SETCOMBINE, 24, 8) | _SHIFTL(muxs0, 0, 24);\
-	_GBI_SET_W1_RAW(_g, (muxs1));					\
+	_g->words.w1 = _GBI_W1(muxs1);				\
 }
 
 #define	gsDPSetCombine(muxs0, muxs1)					\
@@ -3300,7 +3301,7 @@ typedef union {
 				       G_ACMUX_##Aa0, G_ACMUX_##Ac0) |	\
 			       GCCc1w0(G_CCMUX_##a1, G_CCMUX_##c1), 	\
 			       0, 24);					\
-	_GBI_SET_W1_RAW(_g, (GCCc0w1(G_CCMUX_##b0,			\
+	_g->words.w1 =	_GBI_W1(GCCc0w1(G_CCMUX_##b0, 		\
 					       G_CCMUX_##d0,		\
 					       G_ACMUX_##Ab0, 		\
 					       G_ACMUX_##Ad0) |		\
@@ -3309,7 +3310,7 @@ typedef union {
 					       G_ACMUX_##Ac1, 		\
 					       G_CCMUX_##d1,		\
 					       G_ACMUX_##Ab1, 		\
-					       G_ACMUX_##Ad1)));	\
+					       G_ACMUX_##Ad1));		\
 }
 
 #define	gsDPSetCombineLERP(a0, b0, c0, d0, Aa0, Ab0, Ac0, Ad0,		\
@@ -3344,7 +3345,7 @@ typedef union {
 	Gfx *_g = (Gfx *)(pkt);						\
 									\
 	_g->words.w0 = _SHIFTL(c, 24, 8);				\
-	_GBI_SET_W1_RAW(_g, (d));					\
+	_g->words.w1 = _GBI_W1(d);				\
 }
 
 #define	gsDPSetColor(c, d)						\
@@ -3436,7 +3437,7 @@ typedef union {
 	Gfx *_g = (Gfx *)(pkt);						\
 									\
 	_g->words.w0 = _SHIFTL(G_RDPSETOTHERMODE,24,8)|_SHIFTL(mode0,0,24);\
-	_GBI_SET_W1_RAW(_g, (mode1));					\
+	_g->words.w1 = _GBI_W1(mode1);				\
 }
 
 #define	gsDPSetOtherMode(mode0, mode1)					\

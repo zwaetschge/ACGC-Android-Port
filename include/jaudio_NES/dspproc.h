@@ -10,6 +10,7 @@ extern "C" {
 extern s32 DSPSendCommands(u32* commands, u32 count);
 extern u32 DSPReleaseHalt();
 extern void DSPWaitFinish();
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 extern void DsetupTable(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4);
 #else
@@ -20,10 +21,19 @@ extern void DsyncFrame(u32 subframes, uintptr_t dspbuf_start, uintptr_t dspbuf_e
 #else
 extern void DsyncFrame(u32 subframes, u32 dspbuf_start, u32 dspbuf_end);
 #endif
+#else
+extern void DsetupTable(u32 arg0, u32 arg1, u32 arg2, u32 arg3, u32 arg4);
+extern void DsyncFrame(u32 subframes, u32 dspbuf_start, u32 dspbuf_end);
+#endif
 extern void DwaitFrame();
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 extern void DiplSec(uintptr_t arg0);
 extern void DagbSec(uintptr_t arg0);
+#else
+extern void DiplSec(u32 arg0);
+extern void DagbSec(u32 arg0);
+#endif
 #else
 extern void DiplSec(u32 arg0);
 extern void DagbSec(u32 arg0);

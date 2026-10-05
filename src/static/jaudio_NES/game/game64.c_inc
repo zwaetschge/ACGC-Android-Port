@@ -29,7 +29,10 @@ typedef struct SOU_LEV_ONGEN_DATA {
     uintptr_t _04;
     u8 _08;
     u8 _09;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     u8 _pad[2]; /* 8-byte alignment padding for 64-bit */
+#else
+#endif
     f32 distance;
     f32 distance2;
 } SOU_LEV_ONGEN_DATA;
@@ -43,7 +46,10 @@ typedef struct SOU_LS_STACK {
     u8 _5;
     u8 _6;
     u8 _7;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     u8 _pad[8]; /* 8-byte alignment padding for 64-bit */
+#else
+#endif
 } SOU_LS_STACK;
 
 typedef struct SOU_LEV_SE {
@@ -586,9 +592,13 @@ f32 SOU_ONGEN_AREA1 = 540.f;
 f32 SOU_ONGEN_AREA2 = 533.f;
 f32 sou_md_bgm_boost_pasent = 1.f;
 
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 /* 64-bit: audio structs with pointer fields are larger, need more heap space */
 u8 audiomemory[0x120000] ATTRIBUTE_ALIGN(32);
+#else
+u8 audiomemory[0x90000] ATTRIBUTE_ALIGN(32);
+#endif
 #else
 u8 audiomemory[0x90000] ATTRIBUTE_ALIGN(32);
 #endif
@@ -1811,7 +1821,7 @@ void Na_InitAudio(void (*fatal_callback)(), u8* load_addr, size_t load_size, u8*
     u32 unused = SetPreCopy_NeosRom(load_addr, load_size, cut_flag);
     Jac_RegisterDVDErrorCallback(Sou_DVD_Error);
     Jac_Start(audiomemory, sizeof(audiomemory), v);
-    BootSound((u32)bootsound, bootsound_size);
+    BootSound((u32)(uintptr_t)bootsound, bootsound_size);
     sou_NeosBootCheck_ok = 1;
 }
 
@@ -2826,9 +2836,13 @@ void Na_VoiceSe(u8 a, u8 b, u8 c, s16 voice, u8 scale, u8 f) {
                         } break;
                         default: {
                             sou_nobasu_count = 0;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                             if (a < ARRAY_COUNT(SHIIN2BOIN)) {
                                 sou_now_boin = SHIIN2BOIN[a];
                             }
+#else
+                            sou_now_boin = SHIIN2BOIN[a];
+#endif
                         } break;
                     }
                 }
@@ -3031,9 +3045,17 @@ void Na_OngenPos(uintptr_t id, u8 index, u16 angle, f32 distance) {
 
         //! @BUG: should be ARRAY_COUNT(sou_lev_ongen_data), reading unknown data
         if (index == 0xb) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             for (i = 0; i < ARRAY_COUNT(sou_lev_ongen_data); i++) {
+#else
+            for (i = 0; i < ARRAY_COUNT(sou_ongen_entry); i++) {
+#endif
                 if (sou_lev_ongen_data[i]._08 == 0xc) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                     for (j = 0; j < ARRAY_COUNT(sou_lev_ongen_data); j++) {
+#else
+                    for (j = 0; j < ARRAY_COUNT(sou_ongen_entry); j++) {
+#endif
                         if (sou_lev_ongen_data[j]._08 == 0xb && sou_lev_ongen_data[j].distance < distance) {
                             return;
                         }
@@ -3320,7 +3342,13 @@ extern void Na_SysLevStart(u8 id) {
         }
     }
     for (j = 0; j < ARRAY_COUNT(sou_sys_lev); j++) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         sou_sys_lev[j]._1++;
+#else
+        //! BUG: `i` will be ARRAY_COUNT(sou_sys_lev) if we get to this point,
+        // and we will be incrementing out of bounds
+        sou_sys_lev[i]._1++;
+#endif
     }
 
 offset_jmp:
@@ -3668,6 +3696,10 @@ extern void Na_SubGameEnd() {
 }
 
 extern void Na_SceneMode(u8 a) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#else
+    u8 unused = 0;
+#endif
     if (a != sou_scene_mode) {
 #ifdef TARGET_PC
         printf("[SCENE_MODE] %d -> %d\n", sou_scene_mode, a);

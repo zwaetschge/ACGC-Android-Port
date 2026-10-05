@@ -22,8 +22,12 @@
 #define SZP_GETBACKOFS(buf) (((*((u8*)buf) & 0xF) << 8) | (*(((u8*)buf) + 1)))
 #define SZP_GETCOUNT(buf) (*((u16*)buf) >> 12)
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 typedef void DecompCallback(uintptr_t);
+#else
+typedef void DecompCallback(u32);
+#endif
 #else
 typedef void DecompCallback(u32);
 #endif
@@ -101,6 +105,7 @@ inline void JKRDecompress(u8* src, u8* dst, u32 srcLength, u32 skipCount) {
 }
 
 int JKRDecompressFromDVD(JKRDvdFile* srcFile, void* buf, u32 size, u32 maxDest, u32 fileOffset, u32 srcOffset);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 int JKRDecompressFromDVDToAram(JKRDvdFile* srcFile, uintptr_t address, u32 fileSize, u32 maxDest, u32 fileOffset,
                                u32 srcOffset);
@@ -111,6 +116,11 @@ int JKRDecompressFromDVDToAram(JKRDvdFile* srcFile, u32 address, u32 fileSize, u
 #ifdef TARGET_PC
 int JKRDecompressFromAramToMainRam(uintptr_t srcAddress, void* dst, u32 fileSize, u32 maxDest, u32 fileOffset);
 #else
+int JKRDecompressFromAramToMainRam(u32 srcAddress, void* dst, u32 fileSize, u32 maxDest, u32 fileOffset);
+#endif
+#else
+int JKRDecompressFromDVDToAram(JKRDvdFile* srcFile, u32 address, u32 fileSize, u32 maxDest, u32 fileOffset,
+                               u32 srcOffset);
 int JKRDecompressFromAramToMainRam(u32 srcAddress, void* dst, u32 fileSize, u32 maxDest, u32 fileOffset);
 #endif
 

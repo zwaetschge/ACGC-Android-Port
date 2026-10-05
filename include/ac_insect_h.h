@@ -209,7 +209,11 @@ typedef struct insect_actor_s {
     int s32_work0;
     int s32_work1;
     int s32_work2;
+#ifdef TARGET_PC
+    intptr_t s32_work3; /* ac_ins_goki keeps an item pointer here */
+#else
     int s32_work3;
+#endif
 
     f32 f32_work0;
     f32 f32_work1;

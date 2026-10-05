@@ -50,8 +50,12 @@ extern "C" {
 #define CONT_ERR_VOICE_NO_RESPONSE 15
 
 #ifdef TARGET_PC
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 /* 'errno' is a macro on POSIX (from <errno.h>). Permanently undefine it so
  * the struct field named 'errno' works. Game code never uses C errno. */
+#else
+/* 'errno' is a macro on PC (from <errno.h>), rename the struct member */
+#endif
 #ifdef errno
 #undef errno
 #endif
@@ -67,6 +71,11 @@ typedef struct {
     /* 0x03 */ s8 stick_y;
     /* 0x04 */ u8 errno;
 } OSContPad;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#else
+/* Restore errno macro */
+#include <errno.h>
+#endif
 #else
 
 typedef struct {

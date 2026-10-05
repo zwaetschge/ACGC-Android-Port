@@ -79,10 +79,14 @@ typedef struct ALHeap {
     /* 0x10 */ u8* last;
 } ALHeap;
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 /* sizeof(ArcEntry) == 0x10.
  * Fixed-width 32-bit fields to match Big-Endian binary headers in ROM assets.
  * On 64-bit PC, uintptr_t addresses for relocated RAM/ARAM assets are stored
  * in a separate host-side parallel array to avoid corrupting header stride. */
+#else
+/* sizeof(ArcEntry) == 0x10 */
+#endif
 typedef struct ArcEntry_ {
     /* 0x00 */ u32 addr;
     /* 0x04 */ s32 size;
@@ -464,17 +468,28 @@ typedef struct delay_ {
     /* 0x2A0 */ adpcmloop adpcm_loop;
 } delay;
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 /* sizeof(macro) == 0x1C (32-bit). On 64-bit, pointers are 8 bytes so the struct
  * is larger. The stack depth is increased from 4 to 8 to prevent the 5th CALL/LOOP
  * from overflowing into the depth and value fields on 64-bit. On 32-bit, depth=4
  * overflows only wrote into remaining_loop_iters (4 bytes), leaving depth intact;
  * on 64-bit that same overflow also smashed depth (byte 4 of the 8-byte pointer). */
+#else
+/* sizeof(macro) == 0x1C */
+#endif
 typedef struct macro_ {
     /* 0x00 */ u8* pc;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     /* 0x04 */ u8* stack[8];
     /* 0x24 */ u8 remaining_loop_iters[8];
     /* 0x2C */ u8 depth;
     /* 0x2D */ s8 value;
+#else
+    /* 0x04 */ u8* stack[4];
+    /* 0x14 */ u8 remaining_loop_iters[4];
+    /* 0x18 */ u8 depth;
+    /* 0x19 */ s8 value;
+#endif
 } macro;
 
 typedef union subtrack_updates {
@@ -868,12 +883,16 @@ typedef struct AudioGlobals {
     /* 0x2854 */ ArcHeader* bank_header;
     /* 0x2858 */ ArcHeader* wave_header;
     /* 0x285C */ ArcHeader* data_header;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     /* Parallel arrays for 64-bit relocated pointers from archive headers */
     /* 0x2860 */ uintptr_t* seq_relocs;
     /* 0x2868 */ uintptr_t* bank_relocs;
     /* 0x2870 */ uintptr_t* wave_relocs;
     /* 0x2878 */ u16* map_header;
+#else
+    /* 0x2860 */ u16* map_header;
+#endif
 #else
     /* 0x2860 */ u16* map_header;
 #endif

@@ -67,16 +67,25 @@ struct JUTException : public JKRThread {
     void printContext(u16, OSContext*, u32, u32);
     void createFB();
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     static void waitTime(s32);
 #else
     static void waitTime(long);
 #endif
+#else
+    static void waitTime(long);
+#endif
     static JUTErrorHandler setPreUserCallback(JUTErrorHandler);
     static void appendMapFile(const char*);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     static bool queryMapAddress(char*, u32, s32, u32*, u32*, char*, u32, bool, bool);
     static bool queryMapAddress_single(char*, u32, s32, u32*, u32*, char*, u32, bool, bool);
+#else
+    static bool queryMapAddress(char*, u32, long, u32*, u32*, char*, u32, bool, bool);
+    static bool queryMapAddress_single(char*, u32, long, u32*, u32*, char*, u32, bool, bool);
+#endif
 #else
     static bool queryMapAddress(char*, u32, long, u32*, u32*, char*, u32, bool, bool);
     static bool queryMapAddress_single(char*, u32, long, u32*, u32*, char*, u32, bool, bool);

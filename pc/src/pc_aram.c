@@ -47,21 +47,37 @@ void ARStartDMA(u32 type, uintptr_t mram_addr, uintptr_t aram_addr, u32 length) 
         aram_addr -= base;
     }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     /* If it's still a pointer (not relative to aram_base), treat as offset 0 for safety check */
     uintptr_t offset = (aram_addr >= base) ? 0 : aram_addr;
 
     if (length > PC_ARAM_SIZE || offset > PC_ARAM_SIZE - length) {
+#else
+    if (length > PC_ARAM_SIZE || aram_addr > PC_ARAM_SIZE - length) {
+#endif
         /* OOB read: zero-fill dest so caller doesn't get garbage (cap 1MB) */
         if (type == 1 && mram_addr != 0 && length > 0 && length <= 0x100000) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             memset((void*)mram_addr, 0, length);
+#else
+            memset((void*)(uintptr_t)mram_addr, 0, length);
+#endif
         }
         return;
     }
 
     if (type == 0) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         memcpy(aram_base + aram_addr, (void*)mram_addr, length);
+#else
+        memcpy(aram_base + aram_addr, (void*)(uintptr_t)mram_addr, length);
+#endif
     } else {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         memcpy((void*)mram_addr, aram_base + aram_addr, length);
+#else
+        memcpy((void*)(uintptr_t)mram_addr, aram_base + aram_addr, length);
+#endif
     }
 }
 

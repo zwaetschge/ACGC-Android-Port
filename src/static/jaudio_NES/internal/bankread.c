@@ -11,6 +11,7 @@ static Bank_* bankp[BANKP_SIZE];
  * Address:	8000BE00
  * Size:	000024
  */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 static void PTconvert(void** pointer, uintptr_t base_address)
 {
@@ -27,6 +28,15 @@ static void PTconvert(void** pointer, uintptr_t base_address)
 	}
 	*pointer = (void*)(base_address + offset);
 }
+#else
+static void PTconvert(void** pointer, u32 base_address)
+{
+	if (*pointer >= (void*)base_address || *pointer == NULL) {
+		return;
+	}
+	*pointer = *(char**)pointer + base_address;
+}
+#endif
 #else
 static void PTconvert(void** pointer, u32 base_address)
 {

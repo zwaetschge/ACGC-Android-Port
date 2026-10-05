@@ -113,7 +113,11 @@ typedef struct submenu_menu_info_s {
     int data0;
     int data1;
     void* data2;
+#ifdef TARGET_PC
+    intptr_t data3; /* m_mscore_ovl: melody pointer */
+#else
     int data3;
+#endif
 } mSM_MenuInfo_c;
 
 typedef void (*mSM_HAND_MOVE_FUNC)(Submenu*);

@@ -15,6 +15,9 @@
 
 #ifdef TARGET_PC
 #include "pc_platform.h"
+#endif
+
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 extern "C" void pc_gx_flush_if_begin_complete(void);
 
 static jmp_buf pc_dl_crash_jmpbuf;
@@ -24,7 +27,6 @@ static jmp_buf pc_dl_crash_jmpbuf;
  * can't access w1 data. Use GFX_W1_U32 for reading w1 as u32, and
  * GFX_COMPACT / GFX_COMPACT_P for building a temporary 8-byte buffer that
  * can be cast to union view types (Gsettile, Gsetcolor, etc.). */
-#if UINTPTR_MAX > 0xFFFFFFFFu
 #define GFX_W1_U32(gfx_ref) ((u32)(gfx_ref).words.w1)
 /* Build a packed 8-byte {w0,w1} buffer from a widened Gfx, suitable for
  * casting to any of the original 8-byte union member structs. */
@@ -37,13 +39,6 @@ static jmp_buf pc_dl_crash_jmpbuf;
     u32 varname[2]; \
     varname[0] = this->gfx.words.w0; \
     varname[1] = (u32)this->gfx.words.w1
-#else
-#define GFX_W1_U32(gfx_ref) ((gfx_ref).words.w1)
-#define GFX_COMPACT(varname, gfx_ptr) \
-    u32* varname = (u32*)(gfx_ptr)
-#define GFX_COMPACT_SELF(varname) \
-    u32* varname = (u32*)&this->gfx
-#endif
 #else
 #define GFX_W1_U32(gfx_ref) ((gfx_ref).words.w1)
 #define GFX_COMPACT(varname, gfx_ptr) \
@@ -3126,6 +3121,7 @@ void emu64::draw_rectangle(Gtexrect2* texrect) {
     s1 = (center + (s_end - this->settilesize_dolphin_cmds[tile].sl / 16.0f)) / (int)this->texture_info[tile].width;
     t1 = (center + (t_end - this->settilesize_dolphin_cmds[tile].tl / 16.0f)) / (int)this->texture_info[tile].height;
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     /* Save current projection — draw_rectangle overwrites it with its own
        ortho, but subsequent polygon rendering (e.g. mFont text on the FONT
        display list) needs the original projection to be restored. */
@@ -3133,6 +3129,8 @@ void emu64::draw_rectangle(Gtexrect2* texrect) {
     int saved_proj_type = this->projection_type;
     bcopy(this->projection_mtx, saved_proj, sizeof(Mtx44));
 
+#else
+#endif
     GXSetProjection(this->ortho_mtx, GX_ORTHOGRAPHIC);
     GXSetCurrentMtx(GX_PNMTX0);
 
@@ -3188,12 +3186,15 @@ void emu64::draw_rectangle(Gtexrect2* texrect) {
         GXEnd();
     }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     /* Restore projection so subsequent polygon rendering uses the correct matrix */
     bcopy(saved_proj, this->projection_mtx, sizeof(Mtx44));
-    this->projection_type = saved_proj_type;
+    this->projection_type = (GXProjectionType)saved_proj_type;
     GXSetProjection(this->projection_mtx, (GXProjectionType)this->projection_type);
     this->dirty_flags[EMU64_DIRTY_FLAG_PROJECTION_MTX] = true;
 
+#else
+#endif
     this->rdp_pipe_sync_needed = true;
 }
 
@@ -3210,6 +3211,7 @@ void emu64::dirty_check(int tile, int n_tiles, int do_texture_matrix) {
 
     EMU64_TIMED_SEGMENT_BEGIN();
     EMU64_ASSERTLINE_DEBUG(this, 4826);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 
 #ifdef TARGET_PC
     /* Flush any pending GX batch BEFORE changing state.
@@ -3219,6 +3221,8 @@ void emu64::dirty_check(int tile, int n_tiles, int do_texture_matrix) {
      * may already be partially updated for the NEW draw, causing the previous
      * batch to render with wrong textures. */
     pc_gx_flush_if_begin_complete();
+#endif
+#else
 #endif
 
     if (IS_DIRTY(EMU64_DIRTY_FLAG_PRIM_COLOR)) {
@@ -3380,10 +3384,14 @@ void emu64::dirty_check(int tile, int n_tiles, int do_texture_matrix) {
                 GXSetChanCtrl(GX_ALPHA0, GX_FALSE, GX_SRC_REG, GX_SRC_VTX, GX_LIGHT_NULL, GX_DF_NONE, GX_AF_NONE);
             }
         } else {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             /* When G_SHADE is off, N64 ignores vertex colors (shade defaults to white).
              * Use GX_SRC_REG so the channel doesn't pull black vertex colors. */
             int mat_src = (this->geometry_mode & G_SHADE) ? GX_SRC_VTX : GX_SRC_REG;
-            GXSetChanCtrl(GX_COLOR0A0, GX_FALSE, GX_SRC_REG, mat_src, GX_LIGHT_NULL, GX_DF_NONE, GX_AF_NONE);
+            GXSetChanCtrl(GX_COLOR0A0, GX_FALSE, GX_SRC_REG, (GXColorSrc)mat_src, GX_LIGHT_NULL, GX_DF_NONE, GX_AF_NONE);
+#else
+            GXSetChanCtrl(GX_COLOR0A0, GX_FALSE, GX_SRC_REG, GX_SRC_VTX, GX_LIGHT_NULL, GX_DF_NONE, GX_AF_NONE);
+#endif
         }
 
         EMU64_TIMED_SEGMENT_END(dirty_light_time);
@@ -3427,7 +3435,7 @@ void emu64::dirty_check(int tile, int n_tiles, int do_texture_matrix) {
                     img_addr = tex_info_p->img_addr;
 
                     dol_fmt.raw = cvtN64ToDol(tex_info_p->format, tex_info_p->size);
-                    if (((u32)img_addr & 0x1F) != 0) {
+                    if (((uintptr_t)img_addr & 0x1F) != 0) {
 #ifndef TARGET_PC
                         /* Translation: Texture (%08x) alignment isn't 32 bytes */
                         this->Printf0("テクスチャ(%08x)のアライメントが３２バイトになっていません\n", img_addr);
@@ -3513,7 +3521,11 @@ void emu64::dl_G_DL(void) {
     static char s[256];
     Gfx* gfx = this->gfx_p;
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     this->work_ptr = (void*)this->seg2k0(gfx->words.w1);
+#else
+    this->work_ptr = (void*)this->seg2k0(gfx->dma.addr);
+#endif
 #ifdef TARGET_PC
     if (this->work_ptr == NULL) {
         return;
@@ -3536,7 +3548,11 @@ void emu64::dl_G_DL(void) {
         case G_DL_PUSH:
             if (this->segment_set != false) {
                 this->segment_set = false;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                 sprintf(s, "%s", this->segchk(gfx->words.w1));
+#else
+                sprintf(s, "%s", this->segchk(gfx->dma.addr));
+#endif
                 this->Printf0(VT_COL(RED, WHITE) "gsSPDisplayList(%s),\n" VT_RST, s);
                 emu64::warningString[EMU64_WARN_IDX_DL] = s;
                 emu64::warningTime[EMU64_WARN_IDX_DL] = EMU64_WARN_TIME;
@@ -3568,7 +3584,8 @@ void emu64::dl_G_RDPHALF_1(void) {
 }
 
 void emu64::dl_G_TEXRECT() {
-#if UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8
     /* Gtexrect2 spans 3 Gfx commands (24 bytes in original 8-byte format).
      * Build a compact buffer from the widened Gfx entries. */
     u32 _texrect_buf[6] = {
@@ -3577,6 +3594,9 @@ void emu64::dl_G_TEXRECT() {
         this->gfx_p[2].words.w0, (u32)this->gfx_p[2].words.w1
     };
     Gtexrect2* texrect_p = (Gtexrect2*)_texrect_buf;
+#else
+    Gtexrect2* texrect_p = (Gtexrect2*)this->gfx_p;
+#endif
 #else
     Gtexrect2* texrect_p = (Gtexrect2*)this->gfx_p;
 #endif
@@ -3641,7 +3661,11 @@ void emu64::dl_G_ENDDL() {
 }
 
 void emu64::dl_G_SETTILE() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gsettile* settile = (Gsettile*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gsettile* settile = (Gsettile*)this->gfx_p;
+#endif
 
 #ifdef EMU64_DEBUG
     if (this->print_commands != false) {
@@ -3747,8 +3771,12 @@ void emu64::dl_G_SETTILE_DOLPHIN() {
     this->settilesize_dolphin_cmds[tile].isDolphin = 1;
 
     /* Set texture info for use in GC texture object initialization */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     this->texture_info[tile].img_addr = (void*)this->resolved_imgaddr;
+#else
+    this->texture_info[tile].img_addr = (void*)this->now_setimg.setimg2.imgaddr;
+#endif
 #else
     this->texture_info[tile].img_addr = (void*)this->now_setimg.setimg2.imgaddr;
 #endif
@@ -3762,7 +3790,11 @@ void emu64::dl_G_SETTILE_DOLPHIN() {
 }
 
 void emu64::dl_G_LOADTILE() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gloadtile& loadtile = *(Gloadtile*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gloadtile& loadtile = this->gfx_p->loadtile;
+#endif
 
 #ifdef EMU64_DEBUG
     if (this->print_commands) {
@@ -3776,8 +3808,12 @@ void emu64::dl_G_LOADTILE() {
         return;
 
     /* Determine tmem base address */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     uintptr_t dram = this->resolved_imgaddr;
+#else
+    u32 dram = this->now_setimg.setimg2.imgaddr;
+#endif
 #else
     u32 dram = this->now_setimg.setimg2.imgaddr;
 #endif
@@ -3807,10 +3843,15 @@ void emu64::dl_G_LOADTILE() {
 
 void emu64::dl_G_LOADBLOCK() {
     int tmem_idx;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gloadblock* loadblock = (Gloadblock*)EMU64_GFX_COMPACT_PTR;
 #ifdef TARGET_PC
     uintptr_t addr;
 #else
+    u32 addr;
+#endif
+#else
+    Gloadblock* loadblock = (Gloadblock*)this->gfx_p;
     u32 addr;
 #endif
     int i;
@@ -3828,8 +3869,12 @@ void emu64::dl_G_LOADBLOCK() {
         return; /* Does not support LOAD commands */
 
     tmem_idx = this->settile_cmds[loadblock->tile].tmem / 4;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     addr = this->resolved_imgaddr;
+#else
+    addr = this->now_setimg.setimg2.imgaddr;
+#endif
 #else
     addr = this->now_setimg.setimg2.imgaddr;
 #endif
@@ -3846,7 +3891,11 @@ void emu64::dl_G_LOADBLOCK() {
 }
 
 void emu64::dl_G_SETTILESIZE() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gsettilesize* settilesize = (Gsettilesize*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gsettilesize* settilesize = (Gsettilesize*)this->gfx_p;
+#endif
     u32 w0 = this->gfx.words.w0;
     u32 w1 = this->gfx.words.w1;
     int tile;
@@ -3907,7 +3956,11 @@ extern "C" u16 s_tlut_first_word[16];
 #endif
 
 void emu64::dl_G_LOADTLUT() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gloadtlut_dolphin* loadtlut_dol = (Gloadtlut_dolphin*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gloadtlut_dolphin* loadtlut_dol = (Gloadtlut_dolphin*)this->gfx_p;
+#endif
     u16 count;
     void* tlut_addr;
     u32 tlut_name;
@@ -3916,14 +3969,25 @@ void emu64::dl_G_LOADTLUT() {
     EMU64_TIMED_SEGMENT_BEGIN();
 
     if (loadtlut_dol->type == 2) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         uintptr_t tlut_w1 = this->gfx_p->words.w1; /* Full pointer from w1 */
+#else
+#endif
         EMU64_LOGF("gsDPLoadTLUT_Dolphin(%d, %d, %s),", loadtlut_dol->tlut_name, loadtlut_dol->count,
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                    this->segchk(tlut_w1));
+#else
+                   this->segchk(loadtlut_dol->tlut_addr));
+#endif
 
         if (this->disable_polygons == false) {
             count = loadtlut_dol->count & 0x3FFF;
             tlut_name = loadtlut_dol->tlut_name;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             tlut_addr = (void*)this->seg2k0(tlut_w1);
+#else
+            tlut_addr = (void*)this->seg2k0(loadtlut_dol->tlut_addr);
+#endif
 
             if (tlut_addr == this->tlut_addresses[tlut_name]) {
                 /* Translation: ### Same TLUT address */
@@ -3946,7 +4010,7 @@ void emu64::dl_G_LOADTLUT() {
 
                 this->tlut_addresses[tlut_name] = tlut_addr;
                 if (tlut_addr != nullptr) {
-                    if (((u32)tlut_addr & (0x1F)) != 0) {
+                    if (((uintptr_t)tlut_addr & (0x1F)) != 0) {
 #ifndef TARGET_PC
                         /* The alignment of the palette (%08x) is not 32 bytes. */
                         EMU64_PRINTF(
@@ -3972,17 +4036,32 @@ void emu64::dl_G_LOADTLUT() {
         }
     } else {
         Gfx* loadtlut = this->gfx_p;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         Gloadtlut* loadtlut_v = (Gloadtlut*)EMU64_GFX_COMPACT_PTR;
+#else
+#endif
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         EMU64_LOGF("gsDPLoadTLUTCmd(%d,%d),", loadtlut_v->tile, (loadtlut->words.w1 >> 14) & 0x3FF);
+#else
+        EMU64_LOGF("gsDPLoadTLUTCmd(%d,%d),", loadtlut->loadtlut.tile, (loadtlut->words.w1 >> 14) & 0x3FF);
+#endif
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         Gsettile* settile_p = &this->settile_cmds[loadtlut_v->tile];
+#else
+        Gsettile* settile_p = &this->settile_cmds[loadtlut->loadtlut.tile];
+#endif
 
         if (this->disable_polygons == false) {
             u16 count = ((loadtlut->words.w1 >> 14) & 0x3FF) + 1;
             void* tlut;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
             uintptr_t addr = this->resolved_imgaddr;
+#else
+            u32 addr = this->now_setimg.setimg2.imgaddr;
+#endif
 #else
             u32 addr = this->now_setimg.setimg2.imgaddr;
 #endif
@@ -4036,7 +4115,8 @@ void emu64::dl_G_LOADTLUT() {
 }
 
 void emu64::dl_G_SETCOMBINE_NOTEV() {
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     /* On 64-bit, reconstruct the packed 64-bit combine value from w0 and w1 */
     u64 combine_val = ((u64)this->gfx.words.w0) | ((u64)(u32)this->gfx.words.w1 << 32);
     /* Fix cmd to G_SETCOMBINE */
@@ -4044,18 +4124,26 @@ void emu64::dl_G_SETCOMBINE_NOTEV() {
 #else
     u64* combine = (u64*)&this->gfx;
 #endif
+#else
+    u64* combine = (u64*)&this->gfx;
+#endif
     s8 print_commands = this->print_commands;
 
     if (print_commands) {
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         this->print_combine(combine_val);
+#else
+        this->print_combine(*combine);
+#endif
 #else
         this->print_combine(*combine);
 #endif
     }
 
     /* Update combiner settings only if it changed */
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if (*(u64*)&this->combine_gfx != combine_val) {
         *(u64*)&this->combine_gfx = combine_val;
         this->dirty_flags[EMU64_DIRTY_FLAG_COMBINE] = true;
@@ -4067,26 +4155,42 @@ void emu64::dl_G_SETCOMBINE_NOTEV() {
         this->dirty_flags[EMU64_DIRTY_FLAG_COMBINE] = true;
     }
 #endif
+#else
+    ((Gsetcombine_new*)combine)->cmd = G_SETCOMBINE;
+    if (*(u64*)&this->combine_gfx != *combine) {
+        *(u64*)&this->combine_gfx = *combine;
+        this->dirty_flags[EMU64_DIRTY_FLAG_COMBINE] = true;
+    }
+#endif
 }
 
 void emu64::dl_G_SETCOMBINE() {
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     u64 combine_val = ((u64)this->gfx.words.w0) | ((u64)(u32)this->gfx.words.w1 << 32);
+#else
+    u64* combine = (u64*)&this->gfx;
+#endif
 #else
     u64* combine = (u64*)&this->gfx;
 #endif
     s8 print_commands = this->print_commands;
 
     if (print_commands) {
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         this->print_combine(combine_val);
+#else
+        this->print_combine(*combine);
+#endif
 #else
         this->print_combine(*combine);
 #endif
     }
 
     /* Update combiner settings only if it changed */
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if (*(u64*)&this->combine_gfx != combine_val) {
         *(u64*)&this->combine_gfx = combine_val;
         this->dirty_flags[EMU64_DIRTY_FLAG_COMBINE] = true;
@@ -4097,8 +4201,15 @@ void emu64::dl_G_SETCOMBINE() {
         this->dirty_flags[EMU64_DIRTY_FLAG_COMBINE] = true;
     }
 #endif
+#else
+    if (*(u64*)&this->combine_gfx != *combine) {
+        *(u64*)&this->combine_gfx = *combine;
+        this->dirty_flags[EMU64_DIRTY_FLAG_COMBINE] = true;
+    }
+#endif
 
     /* N64 Combiner -> GC TEV */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     /* On PC, skip replace_combine_to_tev — the Gsetcombine_tev bitfield
        layout is endian-dependent and produces garbled TEV inputs on LE.
@@ -4109,26 +4220,50 @@ void emu64::dl_G_SETCOMBINE() {
         this->replace_combine_to_tev(this->gfx_p);
     }
 #endif
+#else
+    if (this->gfx_cmd != G_SETCOMBINE_NOTEV && aflags[AFLAGS_SKIP_COMBINE_TEV] == 0) {
+#ifdef TARGET_PC
+        /* On PC, convert the writable combine_gfx copy instead of the
+           read-only display list data. combine_tev() will then see
+           G_SETCOMBINE_TEV and use the proper TEV color/alpha inputs. */
+        this->replace_combine_to_tev(&this->combine_gfx);
+#else
+        this->replace_combine_to_tev(this->gfx_p);
+#endif
+#endif
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#else
+    }
+#endif
 }
 
 void emu64::dl_G_SETCOMBINE_TEV() {
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     u64 combine_tev_val = ((u64)this->gfx.words.w0) | ((u64)(u32)this->gfx.words.w1 << 32);
+#else
+    u64* combine_tev = (u64*)&this->gfx;
+#endif
 #else
     u64* combine_tev = (u64*)&this->gfx;
 #endif
     s8 print_commands = this->print_commands;
 
     if (print_commands) {
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         this->print_combine_tev(combine_tev_val);
+#else
+        this->print_combine_tev(*combine_tev);
+#endif
 #else
         this->print_combine_tev(*combine_tev);
 #endif
     }
 
     /* Update combiner settings only if it changed */
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if (*(u64*)&this->combine_gfx != combine_tev_val) {
         *(u64*)&this->combine_gfx = combine_tev_val;
         this->dirty_flags[EMU64_DIRTY_FLAG_COMBINE] = true;
@@ -4139,17 +4274,31 @@ void emu64::dl_G_SETCOMBINE_TEV() {
         this->dirty_flags[EMU64_DIRTY_FLAG_COMBINE] = true;
     }
 #endif
+#else
+    if (*(u64*)&this->combine_gfx != *combine_tev) {
+        *(u64*)&this->combine_gfx = *combine_tev;
+        this->dirty_flags[EMU64_DIRTY_FLAG_COMBINE] = true;
+    }
+#endif
 }
 
 void emu64::dl_G_SETOTHERMODE_H() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gsetothermode_dolphin* othermodeH = (Gsetothermode_dolphin*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gsetothermode_dolphin* othermodeH = (Gsetothermode_dolphin*)&this->gfx.setothermodeH;
+#endif
     u32 sft;
     u32 len;
     u32 data;
 
     len = othermodeH->len + 1;
     sft = (32 - othermodeH->sft) - len;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     data = GFX_W1_U32(this->gfx);
+#else
+    data = othermodeH->data;
+#endif
 
     if ((this->print_commands & EMU64_PRINTF2_FLAG) != 0) {
         for (int i = 0; i < ARRAY_COUNT(h_tbl); i++) {
@@ -4183,9 +4332,15 @@ void emu64::dl_G_SETOTHERMODE_L() {
     u32 len;
     u32 data;
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     len = ((Gsetothermode_dolphin*)EMU64_GFX_COMPACT_PTR)->len + 1;
     sft = (32 - ((Gsetothermode_dolphin*)EMU64_GFX_COMPACT_PTR)->sft) - len;
     data = GFX_W1_U32(this->gfx);
+#else
+    len = ((Gsetothermode_dolphin*)&this->gfx)->len + 1;
+    sft = (32 - ((Gsetothermode_dolphin*)&this->gfx)->sft) - len;
+    data = this->gfx.setothermodeL.data;
+#endif
 
     if ((this->print_commands & EMU64_PRINTF2_FLAG) != 0) {
         if ((int)sft == G_MDSFT_RENDERMODE) {
@@ -4281,7 +4436,11 @@ void emu64::dl_G_RDPSETOTHERMODE() {
 
 void emu64::dl_G_SETSCISSOR() {
     u8 print_commands = this->print_commands;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gscissor* scissor = (Gscissor*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gscissor* scissor = (Gscissor*)this->gfx_p;
+#endif
 
 #ifdef EMU64_DEBUG
 
@@ -4322,7 +4481,11 @@ void emu64::dl_G_SETSCISSOR() {
 }
 
 void emu64::dl_G_FILLRECT() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gfillrect2* fillrect = (Gfillrect2*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gfillrect2* fillrect = (Gfillrect2*)this->gfx_p;
+#endif
 
     EMU64_LOGF("gsDPFillRectangle(%d, %d, %d, %d),", fillrect->x1, fillrect->y1, fillrect->x0, fillrect->y0);
 
@@ -4365,18 +4528,30 @@ void emu64::dl_G_SETCIMG() {
             }
 
             this->Printf1("gsDPSetColorImage(G_IM_FMT_%s, G_IM_SIZ_%s, %d, %s),", s_fmt, s_siz,
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                           EXPAND_WIDTH(this->gfx.setimg.wd), this->segchk(this->gfx.words.w1));
+#else
+                          EXPAND_WIDTH(this->gfx.setimg.wd), this->segchk(this->gfx.setimg.dram));
+#endif
         }
     }
 #endif
 }
 
 void emu64::dl_G_SETZIMG() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     EMU64_WARNF("gsDPSetDepthImage(%s),", this->segchk(this->gfx.words.w1));
+#else
+    EMU64_WARNF("gsDPSetDepthImage(%s),", this->segchk(this->gfx.setimg.dram));
+#endif
 }
 
 void emu64::dl_G_SETTIMG() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gsetimg2* setimg2 = (Gsetimg2*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gsetimg2* setimg2 = (Gsetimg2*)this->gfx_p;
+#endif
 
 #ifdef EMU64_DEBUG
     if (this->print_commands & EMU64_PRINT_FLAG_ENABLE) {
@@ -4412,7 +4587,11 @@ void emu64::dl_G_SETTIMG() {
                 }
 
                 this->Printf2("gsDPSetTextureImage(G_IM_FMT_%s, G_IM_SIZ_%s, %d, %s),", s_fmt, s_siz,
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                               EXPAND_WIDTH(setimg->wd), this->segchk(this->gfx_p->words.w1));
+#else
+                              EXPAND_WIDTH(setimg->wd), this->segchk(setimg->dram));
+#endif
             }
         } else if (this->print_commands) {
             const char* s_siz;
@@ -4430,12 +4609,17 @@ void emu64::dl_G_SETTIMG() {
 
             this->Printf2("gsDPSetTextureImage_Dolphin(G_IM_FMT_%s, G_IM_SIZ_%s, %d, %d, %s),",
                           dolfmttbl2[setimg2->siz][setimg2->fmt], s_siz, EXPAND_WIDTH(setimg2->wd),
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                           EXPAND_HEIGHT(setimg2->ht), this->segchk(this->gfx_p->words.w1));
+#else
+                          EXPAND_HEIGHT(setimg2->ht), this->segchk(setimg2->imgaddr));
+#endif
         }
     }
 #endif
 
     this->now_setimg.setimg2 = *setimg2;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     /* On 64-bit, the full pointer is in gfx_p->words.w1 (uintptr_t).
      * The 32-bit imgaddr bitfield in Gsetimg2 would truncate it. */
@@ -4444,52 +4628,104 @@ void emu64::dl_G_SETTIMG() {
 #else
     this->now_setimg.setimg2.imgaddr = (u32)this->seg2k0(setimg2->imgaddr);
 #endif
+#else
+    this->now_setimg.setimg2.imgaddr = (u32)this->seg2k0(setimg2->imgaddr);
+#endif
 }
 
 void emu64::dl_G_SETENVCOLOR() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     EMU64_LOGF("gsDPSetEnvColor(%d, %d, %d, %d),", (GFX_W1_U32(this->gfx) >> 24) & 0xFF,
                (GFX_W1_U32(this->gfx) >> 16) & 0xFF, (GFX_W1_U32(this->gfx) >> 8) & 0xFF,
                (GFX_W1_U32(this->gfx) >> 0) & 0xFF);
+#else
+    EMU64_LOGF("gsDPSetEnvColor(%d, %d, %d, %d),", (this->gfx.setcolor.color >> 24) & 0xFF,
+               (this->gfx.setcolor.color >> 16) & 0xFF, (this->gfx.setcolor.color >> 8) & 0xFF,
+               (this->gfx.setcolor.color >> 0) & 0xFF);
+#endif
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if (this->environment_color.raw != GFX_W1_U32(this->gfx)) {
         this->environment_color.raw = GFX_W1_U32(this->gfx);
+#else
+    if (this->environment_color.raw != this->gfx.setcolor.color) {
+        this->environment_color.raw = this->gfx.setcolor.color;
+#endif
         this->dirty_flags[EMU64_DIRTY_FLAG_ENV_COLOR] = true;
     }
 }
 
 void emu64::dl_G_SETBLENDCOLOR() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     EMU64_LOGF("gsDPSetBlendColor(%d, %d, %d, %d),", (GFX_W1_U32(this->gfx) >> 24) & 0xFF,
                (GFX_W1_U32(this->gfx) >> 16) & 0xFF, (GFX_W1_U32(this->gfx) >> 8) & 0xFF,
                (GFX_W1_U32(this->gfx) >> 0) & 0xFF);
+#else
+    EMU64_LOGF("gsDPSetBlendColor(%d, %d, %d, %d),", (this->gfx.setcolor.color >> 24) & 0xFF,
+               (this->gfx.setcolor.color >> 16) & 0xFF, (this->gfx.setcolor.color >> 8) & 0xFF,
+               (this->gfx.setcolor.color >> 0) & 0xFF);
+#endif
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if (this->blend_color.raw != GFX_W1_U32(this->gfx)) {
         this->blend_color.raw = GFX_W1_U32(this->gfx);
+#else
+    if (this->blend_color.raw != this->gfx.setcolor.color) {
+        this->blend_color.raw = this->gfx.setcolor.color;
+#endif
         this->dirty_flags[EMU64_DIRTY_FLAG_BLEND_COLOR] = true;
     }
 }
 
 void emu64::dl_G_SETFOGCOLOR() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     EMU64_LOGF("gsDPSetFogColor(%d, %d, %d, %d),", (GFX_W1_U32(this->gfx) >> 24) & 0xFF,
                (GFX_W1_U32(this->gfx) >> 16) & 0xFF, (GFX_W1_U32(this->gfx) >> 8) & 0xFF,
                (GFX_W1_U32(this->gfx) >> 0) & 0xFF);
+#else
+    EMU64_LOGF("gsDPSetFogColor(%d, %d, %d, %d),", (this->gfx.setcolor.color >> 24) & 0xFF,
+               (this->gfx.setcolor.color >> 16) & 0xFF, (this->gfx.setcolor.color >> 8) & 0xFF,
+               (this->gfx.setcolor.color >> 0) & 0xFF);
+#endif
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if (this->fog_color.raw != GFX_W1_U32(this->gfx)) {
         this->fog_color.raw = GFX_W1_U32(this->gfx);
+#else
+    if (this->fog_color.raw != this->gfx.setcolor.color) {
+        this->fog_color.raw = this->gfx.setcolor.color;
+#endif
         this->dirty_flags[EMU64_DIRTY_FLAG_FOG] = true;
     }
 }
 
 void emu64::dl_G_SETFILLCOLOR() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     EMU64_LOGF("gsDPSetFillColor(0x%08x),", GFX_W1_U32(this->gfx));
+#else
+    EMU64_LOGF("gsDPSetFillColor(0x%08x),", this->gfx.setcolor.color);
+#endif
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if (this->fill_color.raw != GFX_W1_U32(this->gfx)) {
         this->fill_color.raw = GFX_W1_U32(this->gfx);
+#else
+    if (this->fill_color.raw != this->gfx.setcolor.color) {
+        this->fill_color.raw = this->gfx.setcolor.color;
+#endif
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         u32 fill_w1 = GFX_W1_U32(this->gfx);
         u16 fill_col = (u16)fill_w1; /* Low 16 bits on little-endian (same as *(u16*)&color) */
         this->fill_tev_color.color.r = (fill_col >> 8) & 0xF8;
         this->fill_tev_color.color.g = (fill_col >> 3) & 0xF8;
         this->fill_tev_color.color.b = (fill_col << 2) & 0xF8;
+#else
+        u16* color = (u16*)&this->gfx.setcolor.color;
+        this->fill_tev_color.color.r = (*color >> 8) & 0xF8;
+        this->fill_tev_color.color.g = (*color >> 3) & 0xF8;
+        this->fill_tev_color.color.b = (*color << 2) & 0xF8;
+#endif
 
         this->dirty_flags[EMU64_DIRTY_FLAG_FILL_COLOR] = true;
         this->dirty_flags[EMU64_DIRTY_FLAG_FILL_TEV_COLOR] = true;
@@ -4497,7 +4733,13 @@ void emu64::dl_G_SETFILLCOLOR() {
 }
 
 void emu64::dl_G_SETTEXEDGEALPHA(void) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     this->tex_edge_alpha = (u8)(GFX_W1_U32(this->gfx) & 0xFF);
+#else
+    Gsettexedgealpha* gfx = (Gsettexedgealpha*)&this->gfx;
+
+    this->tex_edge_alpha = gfx->tex_edge_alpha;
+#endif
     this->dirty_flags[EMU64_DIRTY_FLAG_OTHERMODE_LOW] = TRUE;
 }
 
@@ -4509,12 +4751,23 @@ void emu64::dl_G_SETPRIMDEPTH() {
 
 void emu64::dl_G_SETPRIMCOLOR() {
     EMU64_LOGF("gsDPSetPrimColor(%d, %d, %d, %d, %d, %d),", this->gfx.setcolor.prim_min_level,
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                this->gfx.setcolor.prim_level, (GFX_W1_U32(this->gfx) >> 24) & 0xFF,
                (GFX_W1_U32(this->gfx) >> 16) & 0xFF, (GFX_W1_U32(this->gfx) >> 8) & 0xFF,
                (GFX_W1_U32(this->gfx) >> 0) & 0xFF);
+#else
+               this->gfx.setcolor.prim_level, (this->gfx.setcolor.color >> 24) & 0xFF,
+               (this->gfx.setcolor.color >> 16) & 0xFF, (this->gfx.setcolor.color >> 8) & 0xFF,
+               (this->gfx.setcolor.color >> 0) & 0xFF);
+#endif
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if (this->primitive_color.raw != GFX_W1_U32(this->gfx)) {
         this->primitive_color.raw = GFX_W1_U32(this->gfx);
+#else
+    if (this->primitive_color.raw != this->gfx.setcolor.color) {
+        this->primitive_color.raw = this->gfx.setcolor.color;
+#endif
         this->dirty_flags[EMU64_DIRTY_FLAG_PRIM_COLOR] = true;
     }
 
@@ -4545,7 +4798,11 @@ void emu64::dl_G_RDPLOADSYNC() {
 }
 
 void emu64::dl_G_NOOP() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gnoop* noop = (Gnoop*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gnoop* noop = (Gnoop*)&this->gfx;
+#endif
 
     switch (noop->tag) {
         case G_TAG_NONE:
@@ -4564,22 +4821,44 @@ void emu64::dl_G_NOOP() {
             if (this->gfx.words.w1 == 0) {
                 EMU64_LOG("gsDPNoOp(),");
             } else {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                 EMU64_LOGF("gsDPNoOpTag(%08x),", (u32)this->gfx.words.w1);
+#else
+                EMU64_LOGF("gsDPNoOpTag(%08x),", noop->param1);
+#endif
             }
             break;
         case G_TAG_HERE:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_WARNF("gsDPNoOpHere([%s:%d]),", (char*)(uintptr_t)this->gfx.words.w1, noop->param0);
+#else
+            EMU64_WARNF("gsDPNoOpHere([%s:%d]),", (char*)noop->param1, noop->param0);
+#endif
             break;
         case G_TAG_STRING:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_WARNF("gsDPNoOpString(%c%s%c, %d),", '"', (char*)(uintptr_t)this->gfx.words.w1, '"', noop->param0);
+#else
+            EMU64_WARNF("gsDPNoOpString(%c%s%c, %d),", '"', (char*)noop->param1, '"', noop->param0);
+#endif
             break;
         case G_TAG_WORD:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_WARNF("gsDPNoOpWord(0x%08x, %d),", (u32)this->gfx.words.w1, noop->param0);
+#else
+            EMU64_WARNF("gsDPNoOpWord(0x%08x, %d),", noop->param1, noop->param0);
+#endif
             break;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         case G_TAG_FLOAT: {
             u32 float_bits = (u32)this->gfx.words.w1;
             EMU64_WARNF("gsDPNoOpFloat(%8.3f, %d),", *(f32*)&float_bits, noop->param0);
         } break;
+#else
+        case G_TAG_FLOAT:
+            EMU64_WARNF("gsDPNoOpFloat(%8.3f, %d),", *(f32*)&noop->param1, noop->param0);
+            break;
+#endif
         case G_TAG_INFO:
             if (noop->param0 == 0) {
                 EMU64_WARN("gsDPNoOpQuiet(),");
@@ -4592,52 +4871,91 @@ void emu64::dl_G_NOOP() {
         case G_TAG_CALLBACK:
 /* They forgot to pass arguments here */
 #ifdef EMU64_FIX_NOOP_CALLBACK_LOG
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_WARNF("gsDPNoOpCallBack(%08x,%d),", (u32)this->gfx.words.w1, noop->param0);
+#else
+            EMU64_WARNF("gsDPNoOpCallBack(%08x,%d),", noop->param1, noop->param0);
+#endif
 #else
             EMU64_WARN("gsDPNoOpCallBack(%08x,%d),");
 #endif
             break;
         case G_TAG_OPENDISP:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_WARNF("gsDPNoOpOpenDisp([%s:%d]),", (char*)(uintptr_t)this->gfx.words.w1, noop->param0);
+#else
+            EMU64_WARNF("gsDPNoOpOpenDisp([%s:%d]),", noop->param1, noop->param0);
+#endif
             break;
         case G_TAG_CLOSEDISP:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_WARNF("gsDPNoOpCloseDisp([%s:%d]),", (char*)(uintptr_t)this->gfx.words.w1, noop->param0);
+#else
+            EMU64_WARNF("gsDPNoOpCloseDisp([%s:%d]),", noop->param1, noop->param0);
+#endif
             break;
         case G_TAG_FILL:
             EMU64_WARN("gsDPNoOpFill(), /* ### 何じゃコリャ */"); /* Rough translation: ### What the hell */
             this->num_unknown_cmds++;
             break;
         default:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_WARNF("gsDPNoOpTag3(%02x, %08x, %04x),", tag, (u32)this->gfx.words.w1, noop->param0);
+#else
+            EMU64_WARNF("gsDPNoOpTag3(%02x, %08x, %04x),", tag, noop->param1, noop->param0);
+#endif
             break;
     }
 }
 
 void emu64::dl_G_MTX() {
     if (this->print_commands & EMU64_PRINTF_ENABLED_FLAG) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         uintptr_t mtx_w1 = this->gfx_p->words.w1;
         EMU64_LOGF("gsSPMatrix(%s, 0", this->segchk(mtx_w1));
+#else
+        Gwords gfx_copy = this->gfx_p->words;
+        EMU64_LOGF("gsSPMatrix(%s, 0", this->segchk(gfx_copy.w1));
+#endif
 
         for (int i = 0; i < ARRAY_COUNT(gmtxtbl); i++) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_LOGF("|%s", ((((Gmtx*)EMU64_GFX_COMPACT_PTR)->type ^ G_MTX_PUSH) & gmtxtbl[i].mask) == 0 ? gmtxtbl[i].disabled
+#else
+            EMU64_LOGF("|%s", ((((Gmtx*)this->gfx_p)->type ^ G_MTX_PUSH) & gmtxtbl[i].mask) == 0 ? gmtxtbl[i].disabled
+#endif
                                                                                                  : gmtxtbl[i].enabled);
         }
 
         EMU64_LOG("),");
 
         if ((this->print_commands & EMU64_PRINTF3_FLAG) != 0) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_LOGF("%08x %08x %08x\n", (u32)mtx_w1, this->seg2k0(mtx_w1), this->seg2k0(mtx_w1));
             this->disp_matrix((MtxP)this->seg2k0(mtx_w1));
+#else
+            EMU64_LOGF("%08x %08x %08x\n", gfx_copy.w1, this->seg2k0(gfx_copy.w1), this->seg2k0(gfx_copy.w1));
+            this->disp_matrix((MtxP)this->seg2k0(gfx_copy.w1));
+#endif
         }
     }
 
     if (this->disable_polygons == false) {
         EMU64_TIMED_SEGMENT_BEGIN();
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         Gmtx* mtx_gfx = (Gmtx*)EMU64_GFX_COMPACT_PTR;
+#else
+        Gmtx* mtx_gfx = (Gmtx*)this->gfx_p;
+#endif
+        /* Matrix is in N64 s16.16 format. (First 8 elements are s16 integer
+           components, second 8 elements are s16 fractional components) */
         Mtx_t* mtx =
-            (Mtx_t*)this->seg2k0(this->gfx_p->words.w1); /* Matrix is in N64 s16.16 format. (First 8 elements are s16 integer
-                                                    components, second 8 elements are s16 fractional components) */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+            (Mtx_t*)this->seg2k0(this->gfx_p->words.w1);
+#else
+            (Mtx_t*)this->seg2k0(mtx_gfx->addr);
+#endif
 #ifdef TARGET_PC
         if (mtx == NULL) {
             EMU64_TIMED_SEGMENT_END(matrix_time);
@@ -4668,6 +4986,7 @@ void emu64::dl_G_MTX() {
         if ((mtx_gfx->type & G_MTX_PROJECTION) != G_MTX_MODELVIEW) { /* Projection */
             N64Mtx_to_DOLMtx((Mtx*)mtx, mtx44);
             if ((mtx_gfx->type & G_MTX_LOAD) != G_MTX_MUL) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                 {
 #ifdef TARGET_PC
                 /* Detect perspective vs orthographic from the converted float matrix.
@@ -4682,8 +5001,14 @@ void emu64::dl_G_MTX() {
 #else
                 int is_perspective = ((u16)(*mtx)[1][3] == 0);
 #endif
-                if (is_perspective) { /* If the last entry is 0, this should be a perspective projection.
-                                                 Otherwise, it's likely an orthographic projection. */
+                /* If the last entry is 0, this should be a perspective projection.
+                   Otherwise, it's likely an orthographic projection. */
+                if (is_perspective) {
+#else
+                /* If the last entry is 0, this should be a perspective projection.
+                   Otherwise, it's likely an orthographic projection. */
+                if ((u16)(*mtx)[1][3] == 0) {
+#endif
                     this->near = mtx44[2][3] * ((mtx44[2][2] + 1.0f) / (mtx44[2][2] - 1.0f) - 1.0f) / 2.0f;
                     this->far = this->near * ((mtx44[2][2] - 1.0f) / (mtx44[2][2] + 1.0f) + 1.0f);
                     mtx44[2][2] = this->near / (this->near - this->far);
@@ -4716,7 +5041,10 @@ void emu64::dl_G_MTX() {
                 MTXIdentity(this->position_mtx);
                 this->dirty_flags[EMU64_DIRTY_FLAG_PROJECTION_MTX] = true;
                 this->dirty_flags[EMU64_DIRTY_FLAG_FOG] = true;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                 } /* end perspective/ortho block */
+#else
+#endif
             } else {
                 bcopy(mtx44, &this->position_mtx, sizeof(GC_Mtx)); /* Last row of Mtx44 is ignored */
             }
@@ -4778,7 +5106,11 @@ void emu64::dl_G_MTX() {
 void emu64::dl_G_VTX() {
     EMU64_TIMED_SEGMENT_BEGIN();
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gvtx* vtx_gfx = (Gvtx*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gvtx* vtx_gfx = (Gvtx*)&this->gfx;
+#endif
     u32 n = vtx_gfx->n; /* number of vertices */
     int vn = vtx_gfx->vn;
     u32 v0 = (vn >> 1) - n; /* first vertex to load */
@@ -4788,15 +5120,27 @@ void emu64::dl_G_VTX() {
     this->vtx_load_calls++;
 
     if ((this->print_commands & EMU64_PRINTF_ENABLED_FLAG)) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         EMU64_LOGF("gsSPVertex(%s, %d, %d),", this->segchk(this->gfx.words.w1), n, v0);
+#else
+        EMU64_LOGF("gsSPVertex(%s, %d, %d),", this->segchk(this->gfx.dma.addr), n, v0);
+#endif
         if ((this->print_commands & EMU64_PRINTF3_FLAG) != 0) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             this->work_ptr = (void*)this->seg2k0(this->gfx.words.w1);
+#else
+            this->work_ptr = (void*)this->seg2k0(this->gfx.dma.addr);
+#endif
             this->show_vtx((Vtx*)work_ptr, n, v0);
         }
     }
 
     if (this->disable_polygons == false) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         Vtx* vtx_p = (Vtx*)this->seg2k0(this->gfx.words.w1);
+#else
+        Vtx* vtx_p = (Vtx*)this->seg2k0(this->gfx.dma.addr);
+#endif
 #ifdef TARGET_PC
         if (vtx_p == NULL) {
             EMU64_TIMED_SEGMENT_END(spvertex_time);
@@ -4917,7 +5261,11 @@ void emu64::dl_G_MODIFYVTX() {
 }
 
 void emu64::dl_G_LINE3D() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gline3D_new* line = (Gline3D_new*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gline3D_new* line = (Gline3D_new*)&this->gfx;
+#endif
 
     if (line->wd == 0) {
         EMU64_LOGF("gsSPLine3D(%d, %d),", line->v0, line->v1);
@@ -4930,7 +5278,11 @@ void emu64::dl_G_LINE3D() {
 }
 
 void emu64::dl_G_TRI1() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gtri1 tri_gfx = *(Gtri1*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gtri1 tri_gfx = *(Gtri1*)this->gfx_p;
+#endif
     u32 v0 = tri_gfx.v0 / 2;
     u32 v1 = tri_gfx.v1 / 2;
     u32 v2 = tri_gfx.v2 / 2;
@@ -4970,7 +5322,10 @@ void emu64::dl_G_TRIN() {
     EMU64_TIMED_SEGMENT_BEGIN();
 
     this->dirty_check(this->texture_gfx.tile, this->texture_gfx.level, TRUE);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 
+#else
+#endif
     this->setup_1tri_2tri_1quad(first_vtx);
     n_faces = ((first_cmd->words.w0 >> 17) & 0x7F) + 1;
     int n_verts = n_faces * 3;
@@ -5232,7 +5587,11 @@ void emu64::dl_G_TRI2() {
      */
 
     if (this->disable_polygons || aflags[AFLAGS_MAX_POLYGONS] || aflags[AFLAGS_WIREFRAME]) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         Gtri2 tris = *((Gtri2*)EMU64_GFX_COMPACT_PTR);
+#else
+        Gtri2 tris = *((Gtri2*)&this->gfx_p->words);
+#endif
 
         v0 = tris.t0v0 / 2;
         v1 = tris.t0v1 / 2;
@@ -5293,9 +5652,13 @@ void emu64::dl_G_TRI2() {
         }
 
         for (u32 i = 0; i < commands; i++) {
-#if UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8
             u32 _tri2_buf[2] = { this->gfx_p[i].words.w0, (u32)this->gfx_p[i].words.w1 };
             Gtri2 g = *(Gtri2*)_tri2_buf;
+#else
+            Gtri2 g = *(Gtri2*)&this->gfx_p[i].words;
+#endif
 #else
             Gtri2 g = *(Gtri2*)&this->gfx_p[i].words;
 #endif
@@ -5328,7 +5691,11 @@ void emu64::dl_G_TRI2() {
 }
 
 void emu64::dl_G_QUAD() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gquad0 q = *(Gquad0*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gquad0 q = *(Gquad0*)&this->gfx_p->words;
+#endif
     u32 v0 = q.v0 / 2;
     u32 v1 = q.v1 / 2;
     u32 v2 = q.v2 / 2;
@@ -5356,8 +5723,13 @@ void emu64::dl_G_CULLDL() {
     f32 ox;
     f32 oy;
     f32 oz;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     u32 vstart = ((Gculldl*)EMU64_GFX_COMPACT_PTR)->vstart / 2;
     u32 vend = ((Gculldl*)EMU64_GFX_COMPACT_PTR)->vend / 2;
+#else
+    u32 vstart = ((Gculldl*)&this->gfx)->vstart / 2;
+    u32 vend = ((Gculldl*)&this->gfx)->vend / 2;
+#endif
     u32 mask;
     u32 i;
     Vertex* vtx;
@@ -5488,7 +5860,7 @@ void emu64::dl_G_BRANCH_Z() {
     EMU64_WARNF("gsSPBranchLessZraw(%s, %d, 0x%08x),", this->segchk(this->rdpHalf_1), (this->gfx.words.w0 / 2) & 0x7FF,
                 this->gfx.words.w1);
 
-    this->gfx_p = (Gfx*)((int)this->work_ptr - sizeof(Gfx));
+    this->gfx_p = (Gfx*)((uintptr_t)this->work_ptr - sizeof(Gfx));
     /* Translation: gsSPBranchLessZraw isn't implemented yet */
     this->Printf0("gsSPBranchLessZrawはまだインプリメントされていません\n");
 }
@@ -5497,7 +5869,11 @@ void emu64::dl_G_BRANCH_Z() {
 #define TEXTURE_SCALE_CONV TEXTURE_SCALE * 65536.0f
 
 void emu64::dl_G_TEXTURE() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gtexture_internal* texture = (Gtexture_internal*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gtexture_internal* texture = (Gtexture_internal*)&this->gfx;
+#endif
 
 #ifdef EMU64_DEBUG
     if (this->print_commands != false) {
@@ -5512,7 +5888,11 @@ void emu64::dl_G_TEXTURE() {
 #endif
 
     Gfx* t = (Gfx*)&this->texture_gfx;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if ((*(u64*)t) != (*(u64*)texture)) {
+#else
+    if ((*(u64*)t) != (*(u64*)&this->gfx)) {
+#endif
         *(u64*)&this->texture_gfx = *(u64*)texture;
         this->dirty_flags[EMU64_DIRTY_FLAG_TEX] = true;
 
@@ -5608,12 +5988,17 @@ void emu64::dl_G_MOVEWORD() {
     static char s1[20];
     static char s2[64];
     static char s3[64];
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gmoveword* moveword = (Gmoveword*)EMU64_GFX_COMPACT_PTR;
     u32 mw_data = (u32)this->gfx_p->words.w1; /* Read data word from w1, not union view */
+#else
+    Gmoveword* moveword = (Gmoveword*)this->gfx_p;
+#endif
 
     switch (moveword->index) {
         case G_MW_SEGMENT: {
             u32 segment = moveword->offset / 4;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
             /* On 64-bit, w1 is uintptr_t and stores the full pointer directly.
              * No need for pc_gbi_recover_ptr anymore. */
@@ -5646,13 +6031,50 @@ void emu64::dl_G_MOVEWORD() {
         } break;
 
         case G_MW_CLIP: {
+#else
+            EMU64_WARNF("gsSPSegmentA(%d, 0x%08x),", segment, moveword->data);
+#ifdef TARGET_PC
+            /* On PC, store address directly (no GC physical address mapping) */
+            this->segments[segment] = moveword->data;
+#else
+            this->segments[segment] = (0x80000000 + (moveword->data & 0x0FFFFFFF));
+            if (segment >= EMU64_NUM_SEGMENTS ||
+                (moveword->data != 0 && (moveword->data < 0x80000000 || moveword->data > 0x83000000))) {
+                sprintf(s1, "gsSPSegmentA no=%d", segment);
+                sprintf(s2, "base=%s", this->segchk(moveword->data));
+                sprintf(s3, "gfxp=%s", this->segchk((u32)this->gfx_p));
+                emu64::warningString[0] = "SPSegment found Illigal Address.";
+                emu64::warningString[1] = s1;
+                emu64::warningString[2] = s2;
+                emu64::warningString[3] = s3;
+                emu64::warningTime[0] = EMU64_WARN_TIME;
+                emu64::warningTime[1] = EMU64_WARN_TIME;
+                emu64::warningTime[2] = EMU64_WARN_TIME;
+                emu64::warningTime[3] = EMU64_WARN_TIME;
+
+                this->segment_set = true;
+                OSReport(VT_COL(RED, WHITE) "%s\n%s\n%s\n" VT_RST, s1, s2, s3);
+            }
+#endif
+        } break;
+
+        case G_MW_CLIP: {
+#endif
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_LOGF("gsSPClipRatio(FRUSTRATIO_%d), ", mw_data == 0 ? 0 : mw_data);
+#else
+            EMU64_LOGF("gsSPClipRatio(FRUSTRATIO_%d), ", moveword->data == 0 ? 0 : moveword->data);
+#endif
             this->gfx_p +=
                 3; /* gsSPClipRatio generates four moveword instructions, so skip three. Emulator will skip last one. */
         } break;
 
         case G_MW_NUMLIGHT: {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             u32 num_lights = mw_data / 24;
+#else
+            u32 num_lights = moveword->data / 24;
+#endif
             EMU64_LOGF("gsSPNumLights(%d), ", num_lights);
             if (this->num_lights != num_lights) {
                 this->num_lights = num_lights;
@@ -5666,13 +6088,22 @@ void emu64::dl_G_MOVEWORD() {
 /* Seems like the devs used the light table index as the enum number */
 /* TODO: This could be correct. Investigate if they changed the light definitions. */
 #ifdef EMU64_FIX_MOVEWORD_LIGHT_NUM_LOG
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_LOGF("gsSPLightColor(LIGHT_%d, %08x), ", (moveword->offset / 0x18) + 1, mw_data);
 #else
+            EMU64_LOGF("gsSPLightColor(LIGHT_%d, %08x), ", (moveword->offset / 0x18) + 1, moveword->data);
+#endif
+#else
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_LOGF("gsSPLightColor(LIGHT_%d, %08x), ", light + 1, mw_data);
+#else
+            EMU64_LOGF("gsSPLightColor(LIGHT_%d, %08x), ", light + 1, moveword->data);
+#endif
 #endif
 
             this->gfx_p++; /* gsSPLightColor generates two commands */
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             {
                 u32 color_val = GFX_W1_U32(this->gfx);
                 GXColor color_tmp;
@@ -5683,13 +6114,24 @@ void emu64::dl_G_MOVEWORD() {
                 this->lights[light].color.rgba.g = color_tmp.g;
                 this->lights[light].color.rgba.b = color_tmp.b;
             }
+#else
+            GXColor* color = (GXColor*)&((Gmoveword*)&this->gfx)->data;
+            this->lights[light].color.rgba.r = color->r;
+            this->lights[light].color.rgba.g = color->g;
+            this->lights[light].color.rgba.b = color->b;
+#endif
 
             this->dirty_flags[EMU64_DIRTY_FLAG_LIGHTS] = true;
         } break;
 
         case G_MW_FOG: {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             s16 fm = (s16)(mw_data >> 16); /* z multiplier */
             s16 fo = (s16)mw_data;         /* z offset */
+#else
+            s16 fm = (s16)(moveword->data >> 16); /* z multiplier */
+            s16 fo = (s16)moveword->data;         /* z offset */
+#endif
             if (fm != 0) {
                 int min = 500 - (fo * 500) / fm;
                 EMU64_LOGF("gsSPFogFactor(%d, %d),", fm, fo);
@@ -5704,11 +6146,19 @@ void emu64::dl_G_MOVEWORD() {
         } break;
 
         case G_MW_PERSPNORM: {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_LOGF("gsSPPerspNormalize(%d),", mw_data);
+#else
+            EMU64_LOGF("gsSPPerspNormalize(%d),", moveword->data);
+#endif
         } break;
 
         default: {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_LOGF("gsMoveWd(%d, %d, %d), /* ### what */", moveword->index, moveword->offset, mw_data);
+#else
+            EMU64_LOGF("gsMoveWd(%d, %d, %d), /* ### what */", moveword->index, moveword->offset, moveword->data);
+#endif
 
             this->num_unknown_cmds++;
             this->Printf0("未知の命令に出くわした\n"); /* Translation: Came across an unknown command */
@@ -5717,17 +6167,29 @@ void emu64::dl_G_MOVEWORD() {
 }
 
 void emu64::dl_G_MOVEMEM() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gmovemem* movemem = (Gmovemem*)EMU64_GFX_COMPACT_PTR;
     uintptr_t movemem_addr = this->gfx_p->words.w1; /* Full pointer from w1 */
+#else
+    Gmovemem* movemem = (Gmovemem*)this->gfx_p;
+#endif
     u8 param = movemem->index;
     switch (movemem->index) {
         case G_MV_VIEWPORT: {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             this->work_ptr = (void*)this->seg2k0(movemem_addr);
+#else
+            this->work_ptr = (void*)this->seg2k0(movemem->data);
+#endif
             Vp_t* vp = (Vp_t*)this->work_ptr;
 
 #ifdef EMU64_DEBUG
             if (this->print_commands != false) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                 EMU64_LOGF("gsSPViewport(%s),", this->segchk(movemem_addr));
+#else
+                EMU64_LOGF("gsSPViewport(%s),", this->segchk(movemem->data));
+#endif
                 EMU64_INFOF("\t# vscale=[%d %d %d %d], ", vp->vscale[0], vp->vscale[1], vp->vscale[2], vp->vscale[3]);
                 EMU64_INFOF("vtrans=[%d %d %d %d] ", vp->vtrans[0], vp->vtrans[1], vp->vtrans[2], vp->vtrans[3]);
             }
@@ -5759,7 +6221,11 @@ void emu64::dl_G_MOVEMEM() {
         }
 
         case G_MV_MATRIX: {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_LOGF("gsSPForceMatrix(%s),", this->segchk(movemem_addr));
+#else
+            EMU64_LOGF("gsSPForceMatrix(%s),", this->segchk(movemem->data));
+#endif
             this->gfx_p++;                                          /* Generates two commands */
             this->Printf0("gsSPForceMatrixはサポートしてません\n"); /* Translation: gsSPForceMatrix isn't supported */
             break;
@@ -5768,8 +6234,13 @@ void emu64::dl_G_MOVEMEM() {
         case G_MV_LIGHT: {
             switch (movemem->offset * 8) {
                 case G_MVO_LOOKATX: {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                     EMU64_LOGF("gsSPLookAtX(%s),", this->segchk(movemem_addr));
                     LookAt* la = (LookAt*)this->seg2k0(movemem_addr);
+#else
+                    EMU64_LOGF("gsSPLookAtX(%s),", this->segchk(movemem->data));
+                    LookAt* la = (LookAt*)this->seg2k0(movemem->data);
+#endif
                     EMU64_INFOF(" /* {%3d,%3d,%3d} */", la->l->l.dir[0], la->l->l.dir[1], la->l->l.dir[2]);
                     this->lookAt.x.x = la->l->l.dir[0];
                     this->lookAt.x.y = la->l->l.dir[1];
@@ -5779,8 +6250,13 @@ void emu64::dl_G_MOVEMEM() {
                 }
 
                 case G_MVO_LOOKATY: {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                     EMU64_LOGF("gsSPLookAtY(%s),", this->segchk(movemem_addr));
                     LookAt* la = (LookAt*)this->seg2k0(movemem_addr);
+#else
+                    EMU64_LOGF("gsSPLookAtY(%s),", this->segchk(movemem->data));
+                    LookAt* la = (LookAt*)this->seg2k0(movemem->data);
+#endif
                     EMU64_INFOF(" /* {%3d,%3d,%3d} */", la->l->l.dir[0], la->l->l.dir[1], la->l->l.dir[2]);
                     this->lookAt.y.x = la->l->l.dir[0];
                     this->lookAt.y.y = la->l->l.dir[1];
@@ -5790,11 +6266,19 @@ void emu64::dl_G_MOVEMEM() {
                 }
 
                 default: {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                     Light_new* light = (Light_new*)this->seg2k0(movemem_addr);
+#else
+                    Light_new* light = (Light_new*)this->seg2k0(movemem->data);
+#endif
                     int idx = movemem->offset * 8 - 24;
                     idx /= 24; /* Idx should be 1 - 8. There's more bithacks going on here, but I think it's compiler
                                   generated */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                     EMU64_LOGF("gsSPLight(%s, %d),", this->segchk(movemem_addr), idx);
+#else
+                    EMU64_LOGF("gsSPLight(%s, %d),", this->segchk(movemem->data), idx);
+#endif
                     EMU64_INFOF("no = %d color=[%3d %3d %3d],", idx, light->l.col[0], light->l.col[1], light->l.col[2]);
 
                     /* Convert index to 0 based */
@@ -5848,7 +6332,11 @@ void emu64::dl_G_MOVEMEM() {
 
         default: {
             /* Invalid/Unknown MOVEMEM command */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             EMU64_WARNF("gsMoveMem(%s, %d, %d, %d), /* ### what? */", this->segchk(movemem_addr),
+#else
+            EMU64_WARNF("gsMoveMem(%s, %d, %d, %d), /* ### what? */", this->segchk(movemem->data),
+#endif
                         ((movemem->length >> 3) + 1) * 8, movemem->index, movemem->offset);
 
             this->num_unknown_cmds++;
@@ -5863,7 +6351,11 @@ void emu64::dl_G_S2DEX() {
 }
 
 void emu64::dl_G_SPECIAL_1() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     Gspecial1* special = (Gspecial1*)EMU64_GFX_COMPACT_PTR;
+#else
+    Gspecial1* special = (Gspecial1*)&this->gfx;
+#endif
 
     if (special->mode == G_SPECIAL_TA_MODE) {
         EMU64_LOGF("gsDPSetTextureAdjustMode(%s),", special->param0 == 0 ? "G_TA_N64" : "G_TA_DOLPHIN");
@@ -5953,9 +6445,12 @@ u32 emu64::emu64_taskstart_r(Gfx* dl_p) {
         this->cmds_processed++;
         EMU64_INFOF("%08x:", this->gfx_p);
         this->gfx = *this->gfx_p;
-#if UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8
         this->gfx_c.words_compact.w0 = this->gfx.words.w0;
         this->gfx_c.words_compact.w1 = (u32)this->gfx.words.w1;
+#endif
+#else
 #endif
         this->gfx_cmd = this->gfx.dma.cmd;
         this->dl_history[this->dl_history_start++] = this->gfx_p;

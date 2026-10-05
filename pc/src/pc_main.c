@@ -1,6 +1,10 @@
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 /* pc_main.c - PC entry point: SDL2/GL init, crash protection, boot sequence */
 #ifndef _WIN32
 #define _GNU_SOURCE  /* needed for dladdr */
+#endif
+#else
+/* pc_main.c - PC entry point: SDL2/GL init and boot sequence */
 #endif
 #include "pc_platform.h"
 #include "pc_gx_internal.h"
@@ -28,8 +32,8 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 SDL_Window*   g_pc_window = NULL;
 SDL_GLContext  g_pc_gl_context = NULL;
 int           g_pc_running = 1;
-int           g_pc_no_framelimit = 0;
-int           g_pc_fast_forward = 0;
+int           g_pc_frame_limit_override = -1;
+int           g_pc_speedhack_enabled = 0;
 int           g_pc_verbose = 0;
 int           g_pc_time_override = -1; /* -1=system clock, 0-23=override hour */
 int           g_pc_min_override = -1; /* -1=system clock, 0-59=override minute */
@@ -43,6 +47,7 @@ int           g_pc_window_w = PC_SCREEN_WIDTH;
 int           g_pc_window_h = PC_SCREEN_HEIGHT;
 int           g_pc_widescreen_stretch = 0;
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 /* exe image range — used by seg2k0 to distinguish pointers from segment addresses */
 uintptr_t pc_image_base = 0;
 uintptr_t pc_image_end  = 0;
@@ -119,6 +124,11 @@ void pc_crash_set_jmpbuf(jmp_buf* buf) {
 uintptr_t pc_crash_get_addr(void) {
     return pc_last_crash_addr;
 }
+#else
+/* exe image range -- used by seg2k0 to distinguish pointers from segment addresses */
+unsigned int pc_image_base = 0;
+unsigned int pc_image_end  = 0;
+#endif
 
 void pc_platform_init(void) {
 #ifdef _WIN32
@@ -460,6 +470,7 @@ int main(int argc, char* argv[]) {
         IMAGE_NT_HEADERS* nt = (IMAGE_NT_HEADERS*)((char*)exe + dos->e_lfanew);
         pc_image_base = (uintptr_t)exe;
         pc_image_end = pc_image_base + nt->OptionalHeader.SizeOfImage;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     }
 #elif defined(__APPLE__)
     {
@@ -471,13 +482,16 @@ int main(int argc, char* argv[]) {
              * instead of image range, so this is defense-in-depth only. */
             pc_image_end = pc_image_base + 0x10000000;
         }
+#else
+#endif
     }
 #else
     {
         Dl_info dl;
         if (dladdr((void*)main, &dl) && dl.dli_fbase) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             pc_image_base = (uintptr_t)dl.dli_fbase;
-#if UINTPTR_MAX > 0xFFFFFFFFu
+#if __SIZEOF_POINTER__ == 8
             /* 64-bit ELF */
             Elf64_Ehdr* ehdr = (Elf64_Ehdr*)dl.dli_fbase;
             Elf64_Phdr* phdr = (Elf64_Phdr*)((char*)dl.dli_fbase + ehdr->e_phoff);
@@ -496,6 +510,18 @@ int main(int argc, char* argv[]) {
             for (int i = 0; i < ehdr->e_phnum; i++) {
                 if (phdr[i].p_type == PT_LOAD) {
                     uintptr_t seg_end = phdr[i].p_vaddr + phdr[i].p_memsz;
+                    if (seg_end > max_end) max_end = seg_end;
+                }
+            }
+#endif
+#else
+            pc_image_base = (unsigned int)(uintptr_t)dl.dli_fbase;
+            Elf32_Ehdr* ehdr = (Elf32_Ehdr*)dl.dli_fbase;
+            Elf32_Phdr* phdr = (Elf32_Phdr*)((char*)dl.dli_fbase + ehdr->e_phoff);
+            unsigned int max_end = 0;
+            for (int i = 0; i < ehdr->e_phnum; i++) {
+                if (phdr[i].p_type == PT_LOAD) {
+                    unsigned int seg_end = phdr[i].p_vaddr + phdr[i].p_memsz;
                     if (seg_end > max_end) max_end = seg_end;
                 }
             }

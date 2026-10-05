@@ -56,7 +56,11 @@ s32 JKRAramStream::writeToAram(JKRAramStreamCommand* command) {
     u32 dstSize = command->mSize;
     u32 offset = command->mOffset;
     u32 writtenLength = 0;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     uintptr_t destination = (uintptr_t)command->mAddress;
+#else
+    u32 destination = command->mAddress;
+#endif
     u8* buffer = command->mTransferBuffer;
     u32 bufferSize = command->mTransferBufferSize;
     JKRHeap* heap = command->mHeap;
@@ -96,6 +100,7 @@ s32 JKRAramStream::writeToAram(JKRAramStreamCommand* command) {
 
             s32 readLength = command->mStream->read(buffer, length);
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
             JKRAramPcs(0, (uintptr_t)buffer, destination, length, nullptr);
 #else
@@ -231,3 +236,125 @@ void JKRAramStream::setTransBuffer(u8* buffer, u32 bufferSize, JKRHeap* heap) {
 JKRAramStreamCommand::JKRAramStreamCommand() {
     mAllocatedTransferBuffer = false;
 }
+
+#else
+            JKRAramPcs(0, (u32)buffer, destination, length, nullptr);
+            dstSize -= length;
+            writtenLength += length;
+            destination += length;
+        }
+
+        if (command->mAllocatedTransferBuffer) {
+            JKRFree(buffer);
+            command->mAllocatedTransferBuffer = false;
+        }
+    }
+
+    OSSendMessage(&command->mMessageQueue, (OSMessage)writtenLength, OS_MESSAGE_NOBLOCK);
+    return writtenLength;
+};
+
+/*
+ * Unused function, made-up contents. Do not take this seriously!
+ * While the function exists in the map, this is almost certainly incorrect.
+ * Should exist to generate JSURandomInputStream::getAvailable() const
+ * afterwards.
+ */
+JKRAramStreamCommand* JKRAramStream::write_StreamToAram_Async(JSUFileInputStream* stream, JKRAramBlock* addr, u32 size,
+                                                              u32 offset) {
+    JKRAramStreamCommand* command = new (JKRGetSystemHeap(), -4) JKRAramStreamCommand();
+    command->type = JKRAramStreamCommand::ECT_WRITE;
+    command->mAddress = (u32)addr;
+    command->mSize = size;
+    command->mStream = stream;
+    command->_28 = stream->getAvailable();
+    command->mOffset = offset;
+    command->mTransferBuffer = transBuffer;
+    command->mHeap = transHeap;
+    command->mTransferBufferSize = transSize;
+
+    OSInitMessageQueue(&command->mMessageQueue, &command->mMessage, 1);
+#ifdef TARGET_PC
+    /* Execute synchronously on PC (no worker thread) */
+    sAramStreamObject->writeToAram(command);
+#else
+    OSSendMessage(&sMessageQueue, command, OS_MESSAGE_BLOCK);
+#endif
+    return command;
+}
+
+JKRAramStreamCommand* JKRAramStream::write_StreamToAram_Async(JSUFileInputStream* stream, u32 addr, u32 size,
+                                                              u32 offset) {
+    JKRAramStreamCommand* command = new (JKRGetSystemHeap(), -4) JKRAramStreamCommand();
+    command->type = JKRAramStreamCommand::ECT_WRITE;
+    command->mAddress = addr;
+    command->mSize = size;
+    command->mStream = stream;
+    command->_28 = 0;
+    command->mOffset = offset;
+    command->mTransferBuffer = transBuffer;
+    command->mHeap = transHeap;
+    command->mTransferBufferSize = transSize;
+
+    OSInitMessageQueue(&command->mMessageQueue, &command->mMessage, 1);
+#ifdef TARGET_PC
+    /* Execute synchronously on PC (no worker thread) */
+    sAramStreamObject->writeToAram(command);
+#else
+    OSSendMessage(&sMessageQueue, command, OS_MESSAGE_BLOCK);
+#endif
+    return command;
+}
+
+JKRAramStreamCommand* JKRAramStream::sync(JKRAramStreamCommand* command, BOOL isNonBlocking) {
+#ifdef TARGET_PC
+    /* On PC, the write already happened synchronously - just return the command */
+    return command;
+#else
+    OSMessage msg;
+    if (isNonBlocking == FALSE) {
+        OSReceiveMessage(&command->mMessageQueue, &msg, OS_MESSAGE_BLOCK);
+        if (msg == nullptr) {
+            command = nullptr;
+            return command;
+        } else {
+            return command;
+        }
+    } else {
+        BOOL receiveResult = OSReceiveMessage(&command->mMessageQueue, &msg, OS_MESSAGE_NOBLOCK);
+        if (receiveResult == FALSE) {
+            command = nullptr;
+            return command;
+        } else if (msg == nullptr) {
+            command = nullptr;
+            return command;
+        } else {
+            return command;
+        }
+    }
+#endif
+}
+
+void JKRAramStream::setTransBuffer(u8* buffer, u32 bufferSize, JKRHeap* heap) {
+    transBuffer = nullptr;
+    transSize = 0x8000;
+    transHeap = nullptr;
+
+    if (buffer) {
+        transBuffer = (u8*)ALIGN_NEXT((u32)buffer, 0x20);
+    }
+
+    if (bufferSize) {
+        transSize = ALIGN_PREV(bufferSize, 0x20);
+    }
+
+    if (heap && !buffer) {
+        transHeap = heap;
+    }
+}
+
+JKRAramStreamCommand::JKRAramStreamCommand() {
+    mAllocatedTransferBuffer = false;
+}
+
+#endif

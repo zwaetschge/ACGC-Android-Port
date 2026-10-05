@@ -82,6 +82,7 @@ s32 DVDConvertPathToEntrynum(const char* path) {
     return idx;
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 /* DVDFileInfo field access — compute offsets from struct layout so they work on 64-bit.
  * On GC (32-bit), DVDCommandBlock has 4-byte pointers → DVDFileInfo is 0x3C bytes.
  * On 64-bit, pointers are 8 bytes → DVDCommandBlock grows, shifting all fields.
@@ -117,16 +118,33 @@ typedef struct {
     void (*callback)(s32, void*);
 } DVDFileInfo_PC;
 
+#else
+/* DVDFileInfo: 0x3C bytes. We store FILE* in the DVDCommandBlock area at offset 0x18. */
+/* For disc-image backed files, FILE* is set to sentinel DISC_SENTINEL,
+ * and the disc offset is stored in startAddr (0x30). */
+#endif
 #define DISC_SENTINEL ((FILE*)(uintptr_t)0xDEADC0DE)
 
 static FILE** dvd_fi_fp(void* fileInfo) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     return (FILE**)((u8*)fileInfo + offsetof(DVDFileInfo_PC, cb) + offsetof(DVDCommandBlock_PC, addr));
+#else
+    return (FILE**)((u8*)fileInfo + 0x18);
+#endif
 }
 static u32* dvd_fi_length(void* fileInfo) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     return (u32*)((u8*)fileInfo + offsetof(DVDFileInfo_PC, length));
+#else
+    return (u32*)((u8*)fileInfo + 0x34);
+#endif
 }
 static u32* dvd_fi_startAddr(void* fileInfo) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     return (u32*)((u8*)fileInfo + offsetof(DVDFileInfo_PC, startAddr));
+#else
+    return (u32*)((u8*)fileInfo + 0x30);
+#endif
 }
 
 BOOL DVDFastOpen(s32 entrynum, void* fileInfo) {
@@ -164,7 +182,11 @@ BOOL DVDFastOpen(s32 entrynum, void* fileInfo) {
     if (pc_disc_is_open()) {
         u32 disc_off, disc_sz;
         if (pc_disc_find_file(path, &disc_off, &disc_sz)) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             memset(fileInfo, 0, sizeof(DVDFileInfo_PC));
+#else
+            memset(fileInfo, 0, 0x3C);
+#endif
             *dvd_fi_fp(fileInfo) = DISC_SENTINEL;
             *dvd_fi_startAddr(fileInfo) = disc_off;
             *dvd_fi_length(fileInfo) = disc_sz;
@@ -194,7 +216,11 @@ BOOL DVDFastOpen(s32 entrynum, void* fileInfo) {
         len = (u32)ftell(fp);
         fseek(fp, 0, SEEK_SET);
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         memset(fileInfo, 0, sizeof(DVDFileInfo_PC));
+#else
+        memset(fileInfo, 0, 0x3C);
+#endif
         *dvd_fi_fp(fileInfo) = fp;
         *dvd_fi_startAddr(fileInfo) = 0;
         *dvd_fi_length(fileInfo) = len;

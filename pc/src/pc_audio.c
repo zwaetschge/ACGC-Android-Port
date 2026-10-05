@@ -9,10 +9,12 @@
  * so OS preemption of the game thread doesn't cause audio dropouts.
  */
 #include "pc_platform.h"
+#include "pc_settings.h"
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #include "pc_audio_ptr.h"
+#endif
 #include "jaudio_NES/audiothread.h"
-
-#if UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 uintptr_t pc_audio_ptr_base = 0;
 #endif
 
@@ -118,8 +120,13 @@ void AIInit(u8* stack) {
     }
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 void AIInitDMA(uintptr_t addr, u32 size) {
     s16* src = (s16*)addr;
+#else
+void AIInitDMA(u32 addr, u32 size) {
+    s16* src = (s16*)(uintptr_t)addr;
+#endif
     u32 n_samples = size / sizeof(s16);
     n_samples &= ~1u; /* whole stereo frames */
 

@@ -550,7 +550,7 @@ static u8* nesinfo_next_tag(u8* data) {
 }
 
 static u16 calc_check_sum2(void* data, size_t size) {
-    if (((u32)data & 1) == 0) {
+    if (((uintptr_t)data & 1) == 0) {
         u16 sum;
         size_t i;
         u16* data2;

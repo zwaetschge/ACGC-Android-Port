@@ -22,8 +22,12 @@ class JKRFileLoader : public JKRDisposer {
     virtual void removeResourceAll() = 0;                                                              // _24
     virtual bool removeResource(void*) = 0;                                                            // _28
     virtual bool detachResource(void*) = 0;                                                            // _2C
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     virtual s32 getResSize(const void*) const = 0;                                                     // _30
+#else
+    virtual long getResSize(const void*) const = 0;                                                    // _30
+#endif
 #else
     virtual long getResSize(const void*) const = 0;                                                    // _30
 #endif

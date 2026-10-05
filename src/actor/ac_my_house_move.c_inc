@@ -373,9 +373,16 @@ static void aMHS_wait(STRUCTURE_ACTOR* my_house, GAME_PLAY* play) {
 
 static void aMHS_open_door_wait(STRUCTURE_ACTOR* my_house, GAME_PLAY* play) {
     ACTOR* actorx = (ACTOR*)my_house;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     ACTOR* door_label = (*GET_PLAYER_ACTOR_NOW()->get_door_label_proc)(gamePT);
+#else
+#endif
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if (actorx == door_label) {
+#else
+    if (actorx == (*GET_PLAYER_ACTOR_NOW()->get_door_label_proc)(gamePT)) {
+#endif
         mBGMPsComp_make_ps_wipe(0x249);
         aMHS_setup_animation(my_house, 0.5f);
         aMHS_setup_action(my_house, aMHS_ACTION_OPEN_DOOR);

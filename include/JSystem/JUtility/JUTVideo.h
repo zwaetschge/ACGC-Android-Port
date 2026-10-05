@@ -18,9 +18,14 @@ struct JUTVideo {
 
     static JUTVideo* createManager(const GXRenderModeObj*);
     static void destroyManager();
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     static void preRetraceProc(u32);
     static void postRetraceProc(u32);
+#else
+    static void preRetraceProc(unsigned long);
+    static void postRetraceProc(unsigned long);
+#endif
 #else
     static void preRetraceProc(unsigned long);
     static void postRetraceProc(unsigned long);

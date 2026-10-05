@@ -9,8 +9,12 @@
 #ifdef __cplusplus
 class JKRADCommand {
   public:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     typedef void (*LoadCallback)(uintptr_t);
+#else
+    typedef void (*LoadCallback)(u32);
+#endif
 #else
     typedef void (*LoadCallback)(u32);
 #endif
@@ -35,6 +39,7 @@ class JKRADCommand {
 
 class JKRDvdAramRipper {
   public:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     static JKRAramBlock* loadToAram(char const*, uintptr_t, JKRExpandSwitch, u32, u32);
     static JKRAramBlock* loadToAram(s32, uintptr_t, JKRExpandSwitch, u32, u32);
@@ -47,6 +52,12 @@ class JKRDvdAramRipper {
 #ifdef TARGET_PC
     static JKRADCommand* loadToAram_Async(JKRDvdFile*, uintptr_t, JKRExpandSwitch, JKRADCommand::LoadCallback, u32, u32);
 #else
+    static JKRADCommand* loadToAram_Async(JKRDvdFile*, u32, JKRExpandSwitch, JKRADCommand::LoadCallback, u32, u32);
+#endif
+#else
+    static JKRAramBlock* loadToAram(char const*, u32, JKRExpandSwitch, u32, u32);
+    static JKRAramBlock* loadToAram(s32, u32, JKRExpandSwitch, u32, u32);
+    static JKRAramBlock* loadToAram(JKRDvdFile*, u32, JKRExpandSwitch, u32, u32);
     static JKRADCommand* loadToAram_Async(JKRDvdFile*, u32, JKRExpandSwitch, JKRADCommand::LoadCallback, u32, u32);
 #endif
     static JKRADCommand* callCommand_Async(JKRADCommand*);
@@ -71,8 +82,12 @@ class JKRDvdAramRipper {
     static JSUList<JKRADCommand> sDvdAramAsyncList;
 };
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 inline JKRAramBlock* JKRDvdToAram(s32 entrynum, uintptr_t p2, JKRExpandSwitch expSwitch, u32 p4, u32 p5) {
+#else
+inline JKRAramBlock* JKRDvdToAram(s32 entrynum, u32 p2, JKRExpandSwitch expSwitch, u32 p4, u32 p5) {
+#endif
 #else
 inline JKRAramBlock* JKRDvdToAram(s32 entrynum, u32 p2, JKRExpandSwitch expSwitch, u32 p4, u32 p5) {
 #endif

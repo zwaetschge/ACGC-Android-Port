@@ -526,7 +526,7 @@ static int aNPC_setupActor_proc(GAME_PLAY* play, mActor_name_t name, s8 idx, int
 }
 
 #ifndef aNPC_NPC2
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 /* 64-bit: NPC structs are larger due to pointer widening */
 #define aNPC_ACTOR_CLASS_SLOT_SIZE 0xC00
 #elif defined(TARGET_PC)

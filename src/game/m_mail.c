@@ -16,13 +16,21 @@ static u8 footer[MAIL_FOOTER2_LEN];
 static u8 header[MAIL_HEADER2_LEN];
 
 extern int mMl_strlen(u8* str, int size, u8 end_char) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     u8* end_p = str + size;
+#else
+    u32 end_p = size + (u32)str;
+#endif
     int i;
 
     end_p--;
     for (size; size != 0; size--) {
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         if (*end_p != end_char) {
+#else
+        if (*(u8*)end_p != end_char) {
+#endif
             return size;
         }
 

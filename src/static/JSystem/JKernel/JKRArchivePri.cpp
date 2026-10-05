@@ -11,7 +11,7 @@ JKRArchive::JKRArchive() {
     mIsMounted = false;
     mMountDirection = MOUNT_DIRECTION_HEAD;
 #ifdef TARGET_PC
-    mFileEntryDataPtrs = nullptr;
+    JKR_CLEAR_FILE_ENTRY_DATA();
 #endif
 }
 
@@ -21,7 +21,7 @@ JKRArchive::JKRArchive(s32 entryNum, JKRArchive::EMountMode mountMode) : JKRFile
     mMountCount = 1;
     _54 = 1;
 #ifdef TARGET_PC
-    mFileEntryDataPtrs = nullptr;
+    JKR_CLEAR_FILE_ENTRY_DATA();
 #endif
     mHeap = JKRHeap::findFromRoot(this);
     if (!mHeap) {

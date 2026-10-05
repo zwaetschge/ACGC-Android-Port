@@ -34,10 +34,16 @@ class JKRAramBlock {
     JKRAramBlock* allocHead(u32 size, u8 groupID, JKRAramHeap* heap);
     JKRAramBlock* allocTail(u32 size, u8 groupID, JKRAramHeap* heap);
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     uintptr_t getAddress() const {
         return this->mAddress;
     }
+#else
+    u32 getAddress() const {
+        return this->mAddress;
+    }
+#endif
 #else
     u32 getAddress() const {
         return this->mAddress;
@@ -111,8 +117,12 @@ class JKRAramHeap : public JKRDisposer {
 
 class JKRAram : public JKRThread {
   public:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     JKRAram(u32, u32, s32);
+#else
+    JKRAram(u32, u32, long);
+#endif
 #else
     JKRAram(u32, u32, long);
 #endif
@@ -123,6 +133,7 @@ class JKRAram : public JKRThread {
     static bool checkOkAddress(u8* addr, u32 size, JKRAramBlock* block, u32 param_4);
     static void changeGroupIdIfNeed(u8* data, int groupId);
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     static JKRAram* create(u32, u32, s32, s32, s32);
 #else
@@ -131,6 +142,10 @@ class JKRAram : public JKRThread {
 #ifdef TARGET_PC
     static JKRAramBlock* mainRamToAram(u8*, uintptr_t, u32, JKRExpandSwitch, u32, JKRHeap*, int);
 #else
+    static JKRAramBlock* mainRamToAram(u8*, u32, u32, JKRExpandSwitch, u32, JKRHeap*, int);
+#endif
+#else
+    static JKRAram* create(u32, u32, long, long, long);
     static JKRAramBlock* mainRamToAram(u8*, u32, u32, JKRExpandSwitch, u32, JKRHeap*, int);
 #endif
     static JKRAramBlock* mainRamToAram(u8*, JKRAramBlock* block, u32, JKRExpandSwitch, u32, JKRHeap*, int);
@@ -173,20 +188,32 @@ class JKRAram : public JKRThread {
     static OSMessageQueue sMessageQueue;
     static JSUList<JKRAMCommand> sAramCommandList;
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     uintptr_t mAudioMemoryPtr;    // _7C
 #else
     u32 mAudioMemoryPtr;    // _7C
 #endif
+#else
+    u32 mAudioMemoryPtr;    // _7C
+#endif
     u32 mAudioMemorySize;   // _80
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     uintptr_t mGraphMemoryPtr;    // _84
 #else
     u32 mGraphMemoryPtr;    // _84
 #endif
+#else
+    u32 mGraphMemoryPtr;    // _84
+#endif
     u32 mGraphMemorySize;   // _88
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     uintptr_t mUserMemoryPtr;     // _8C
+#else
+    u32 mUserMemoryPtr;     // _8C
+#endif
 #else
     u32 mUserMemoryPtr;     // _8C
 #endif
@@ -197,8 +224,12 @@ class JKRAram : public JKRThread {
 
 class JKRAMCommand : public ARQRequest {
   public:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     typedef void (*AMCommandCallback)(uintptr_t);
+#else
+    typedef void (*AMCommandCallback)(u32);
+#endif
 #else
     typedef void (*AMCommandCallback)(u32);
 #endif
@@ -210,9 +241,14 @@ class JKRAMCommand : public ARQRequest {
     JSULink<JKRAMCommand> mLink30;
     s32 mDirection;
     u32 mLength;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     uintptr_t mSource;
     uintptr_t mDestination;
+#else
+    u32 mSource;
+    u32 mDestination;
+#endif
 #else
     u32 mSource;
     u32 mDestination;
@@ -243,6 +279,7 @@ class JKRAramCommand {
 
 class JKRAramPiece {
   public:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     static JKRAMCommand* prepareCommand(int direction, uintptr_t source, uintptr_t destination, u32 length, JKRAramBlock* aramBlock,
                                         JKRAMCommand::AMCommandCallback callback);
@@ -253,6 +290,17 @@ class JKRAramPiece {
     static bool orderSync(int direction, uintptr_t source, uintptr_t destination, u32 length, JKRAramBlock* aramBlock);
     static void startDMA(JKRAMCommand* cmd);
     static void doneDMA(uintptr_t arg);
+#else
+    static JKRAMCommand* prepareCommand(int direction, u32 source, u32 destination, u32 length, JKRAramBlock* aramBlock,
+                                        JKRAMCommand::AMCommandCallback callback);
+    static void sendCommand(JKRAMCommand* cmd);
+    static JKRAMCommand* orderAsync(int direction, u32 source, u32 destination, u32 length, JKRAramBlock* aramBlock,
+                                    JKRAMCommand::AMCommandCallback callback);
+    static bool sync(JKRAMCommand* cmd, BOOL noBlock);
+    static bool orderSync(int direction, u32 source, u32 destination, u32 length, JKRAramBlock* aramBlock);
+    static void startDMA(JKRAMCommand* cmd);
+    static void doneDMA(u32 arg);
+#endif
 #else
     static JKRAMCommand* prepareCommand(int direction, u32 source, u32 destination, u32 length, JKRAramBlock* aramBlock,
                                         JKRAMCommand::AMCommandCallback callback);
@@ -306,8 +354,12 @@ class JKRAramStreamCommand {
 
 class JKRAramStream : public JKRThread {
   public:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     JKRAramStream(s32);
+#else
+    JKRAramStream(long);
+#endif
 #else
     JKRAramStream(long);
 #endif
@@ -320,8 +372,12 @@ class JKRAramStream : public JKRThread {
     static u32 readFromAram();
     static s32 writeToAram(JKRAramStreamCommand*);
     static JKRAramStreamCommand* write_StreamToAram_Async(JSUFileInputStream*, JKRAramBlock*, u32, u32);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     static JKRAramStreamCommand* write_StreamToAram_Async(JSUFileInputStream*, uintptr_t, u32, u32);
+#else
+    static JKRAramStreamCommand* write_StreamToAram_Async(JSUFileInputStream*, u32, u32, u32);
+#endif
 #else
     static JKRAramStreamCommand* write_StreamToAram_Async(JSUFileInputStream*, u32, u32, u32);
 #endif
@@ -353,9 +409,14 @@ inline u8* JKRAramToMainRam(uintptr_t address, u8* buf, u32 bufSize, JKRExpandSw
     return JKRAram::aramToMainRam(address, buf, bufSize, expandSwitch, p5, heap, id, pSize);
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 inline JKRAramBlock* JKRMainRamToAram(u8* buf, uintptr_t bufSize, u32 alignedSize, JKRExpandSwitch expandSwitch, u32 fileSize,
                                       JKRHeap* heap, int id, u32) {
+#else
+inline JKRAramBlock* JKRMainRamToAram(u8* buf, u32 bufSize, u32 alignedSize, JKRExpandSwitch expandSwitch, u32 fileSize,
+                                      JKRHeap* heap, int id, u32) {
+#endif
 #else
 inline JKRAramBlock* JKRMainRamToAram(u8* buf, u32 bufSize, u32 alignedSize, JKRExpandSwitch expandSwitch, u32 fileSize,
                                       JKRHeap* heap, int id, u32) {
@@ -367,10 +428,16 @@ inline JKRAramStream* JKRCreateAramStreamManager(s32 priority) {
     return JKRAramStream::create(priority);
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 inline bool JKRAramPcs(int direction, uintptr_t source, uintptr_t destination, u32 length, JKRAramBlock* block) {
     return JKRAramPiece::orderSync(direction, source, destination, length, block);
 }
+#else
+inline bool JKRAramPcs(int direction, u32 source, u32 destination, u32 length, JKRAramBlock* block) {
+    return JKRAramPiece::orderSync(direction, source, destination, length, block);
+}
+#endif
 #else
 inline bool JKRAramPcs(int direction, u32 source, u32 destination, u32 length, JKRAramBlock* block) {
     return JKRAramPiece::orderSync(direction, source, destination, length, block);

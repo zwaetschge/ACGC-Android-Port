@@ -121,7 +121,11 @@ int Jac_Portcmd_Proc_Once(JPorthead_* port)
 			break;
 		}
 		// Ckit ahh moment unless someone figures out what type Get_Portcmd actually returns
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 		((int (*)(uintptr_t)) * (uintptr_t*)(p + 5 * sizeof(uintptr_t)))(((uintptr_t*)p)[6]);
+#else
+		((int (*)(int)) * (int*)(p + 0x14))(((int*)p)[6]);
+#endif
 	}
 	return 0;
 }
@@ -138,7 +142,11 @@ int Jac_Portcmd_Proc_Stay(JPorthead_* port)
 		if (!p) {
 			break;
 		}
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 		((int (*)(uintptr_t)) * (uintptr_t*)(p + 5 * sizeof(uintptr_t)))(((uintptr_t*)p)[6]);
+#else
+		((int (*)(int)) * (int*)(p + 0x14))(((int*)p)[6]);
+#endif
 
 		p = ((uintptr_t*)p)[4];
 	}

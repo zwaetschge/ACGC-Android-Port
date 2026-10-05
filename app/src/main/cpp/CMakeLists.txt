@@ -60,6 +60,14 @@ add_compile_options(
     -Wno-c++11-narrowing
     "$<$<COMPILE_LANGUAGE:C,CXX>:-include${CMAKE_CURRENT_SOURCE_DIR}/android/android_ansi_decls.h>"
 )
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    # 64-bit: the decomp still converts between pointers and 32-bit integers in
+    # places the PC port tolerates (pointer recovery, see pc_gbi_ptr.h).
+    add_compile_options(
+        "$<$<COMPILE_LANGUAGE:C>:-Wno-error=incompatible-function-pointer-types>"
+        "$<$<COMPILE_LANGUAGE:C>:-Wno-error=int-to-pointer-cast>"
+    )
+endif()
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/compat        # glad/gl.h -> GLES3 shim (first!)

@@ -60,15 +60,28 @@ const char* emu64::segchk(uintptr_t segment) {
     const char str0[] = "anime_4_txt+%4u";
     const char str1[] = "anime_6_model+sizeof(Mtx)*%2u";
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     uintptr_t partial_addr = seg2k0(segment);
     uintptr_t addr = convert_partial_address((u32)partial_addr);
+#else
+    u32 partial_addr = seg2k0(segment);
+    u32 addr = convert_partial_address(partial_addr);
+#endif
 
     str[0] = '\0';
     if (segment == partial_addr) {
         if (addr == partial_addr) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             snprintf(str, sizeof(str), "0x%08x", (u32)segment);
+#else
+            snprintf(str, sizeof(str), "0x%08x", segment);
+#endif
         } else {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             snprintf(str, sizeof(str), "0x%08x /* PADDR=0x%08x */", (u32)segment, (u32)addr);
+#else
+            snprintf(str, sizeof(str), "0x%08x /* PADDR=0x%08x */", segment, addr);
+#endif
         }
     } else {
         const char* s;

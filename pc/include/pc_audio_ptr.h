@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-#if UINTPTR_MAX > 0xFFFFFFFFu
+#if __SIZEOF_POINTER__ == 8
 
 extern uintptr_t pc_audio_ptr_base;
 

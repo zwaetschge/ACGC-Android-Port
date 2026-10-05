@@ -14,8 +14,12 @@ typedef struct ARQRequest ARQRequest;
 typedef void (*ARCallback)(void);
 
 // ARQ callback function type.
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 typedef void (*ARQCallback)(uintptr_t ptrToRequest);
+#else
+typedef void (*ARQCallback)(u32 ptrToRequest);
+#endif
 #else
 typedef void (*ARQCallback)(u32 ptrToRequest);
 #endif
@@ -25,6 +29,7 @@ struct ARQRequest {
 	u32 owner;            // _04
 	u32 type;             // _08
 	u32 priority;         // _0C
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 	uintptr_t source;     // _10
 	uintptr_t dest;       // _18
@@ -34,6 +39,12 @@ struct ARQRequest {
 #endif
 	u32 length;
 	ARQCallback callback;
+#else
+	u32 source;           // _10
+	u32 dest;             // _14
+	u32 length;           // _18
+	ARQCallback callback; // _1C
+#endif
 };
 
 ////////////////////////////////////////////
@@ -41,8 +52,12 @@ struct ARQRequest {
 /////////////// AR FUNCTIONS ///////////////
 // ARQ functions.
 void ARQInit();
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 void ARQPostRequest(void* req, uintptr_t owner, u32 type, u32 prio, uintptr_t source, uintptr_t dest, u32 length, void* callback);
+#else
+void ARQPostRequest(ARQRequest* task, u32 owner, u32 type, u32 priority, u32 source, u32 dest, u32 length, ARQCallback callback);
+#endif
 #else
 void ARQPostRequest(ARQRequest* task, u32 owner, u32 type, u32 priority, u32 source, u32 dest, u32 length, ARQCallback callback);
 #endif
@@ -50,12 +65,17 @@ void ARQPostRequest(ARQRequest* task, u32 owner, u32 type, u32 priority, u32 sou
 // AR functions.
 ARQCallback ARRegisterDMACallback(ARQCallback callback);
 u32 ARGetDMAStatus();
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 void ARStartDMA(u32 type, uintptr_t mainmem_addr, uintptr_t aram_addr, u32 length);
 #else
 void ARStartDMA(u32 type, u32 mainmem_addr, u32 aram_addr, u32 length);
 #endif
 uintptr_t ARAlloc(u32 length);
+#else
+void ARStartDMA(u32 type, u32 mainmem_addr, u32 aram_addr, u32 length);
+u32 ARAlloc(u32 length);
+#endif
 u32 ARInit(u32* stack_index_addr, u32 num_entries);
 u32 ARGetBaseAddress();
 u32 ARGetSize();

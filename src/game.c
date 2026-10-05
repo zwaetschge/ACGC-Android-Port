@@ -154,6 +154,7 @@ extern void game_main(GAME* this) {
     GRAPH_SET_DOING_POINT(graph, GAME_TIME_FINISHED);
     PC_DIAG(5, "game_main: mTM_time done, calling exec=%p\n", (void*)this->exec);
     GRAPH_SET_DOING_POINT(graph, GAME_EXEC);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     {
         static jmp_buf game_exec_jmpbuf;
@@ -168,6 +169,9 @@ extern void game_main(GAME* this) {
         }
         pc_crash_set_jmpbuf(NULL);
     }
+#else
+    this->exec(this);
+#endif
 #else
     this->exec(this);
 #endif

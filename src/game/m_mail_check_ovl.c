@@ -1148,7 +1148,7 @@ static int mMck_cmp_sep_nes(u8 c) {
 
 static int mMck_strlen_new(u8* str, int len) {
   if (len > 0) {
-    u8* end_p = (u8*)(len + (int)str);
+    u8* end_p = (u8*)(len + (intptr_t)str);
     end_p--;
 
     for (len; len != 0; len--) {

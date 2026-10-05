@@ -433,7 +433,11 @@ extern void initial_menu_init() {
 }
 
 extern void initial_menu_cleanup() {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
   OSMessage msg;
+#else
+  int msg;
+#endif
 
   if (Thread_p != NULL) {
     if (!osRecvMesg(&commandQ, (OSMessage*)&msg, OS_MESSAGE_NOBLOCK)) {

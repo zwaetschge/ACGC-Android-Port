@@ -1,7 +1,11 @@
 #ifndef _DOLPHIN_CARDMOUNT_H_
 #define _DOLPHIN_CARDMOUNT_H_
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifndef TARGET_PC
+int CARDProbe(long chan);
+#endif
+#else
 int CARDProbe(long chan);
 #endif
 s32 CARDProbeEx(s32 chan, s32 *memSize, s32 *sectorSize);

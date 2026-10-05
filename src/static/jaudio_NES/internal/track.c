@@ -1279,19 +1279,31 @@ static void Nas_SubSeq(sub* subtrack) {
                                 Nas_DeAllocAllVoices(&subtrack->channel_node);
                                 break;
                             case SUBTRACK_CMD_SET_DYNTBL: // set dynamic table
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                 subtrack->dyn_tbl = (unsigned char(*)[][2])&grp->seq_data[(uintptr_t)cmdArgs[0]];
+#else
+                                subtrack->dyn_tbl = (unsigned char(*)[][2])&grp->seq_data[(u16)cmdArgs[0]];
+#endif
                                 break;
                             case SUBTRACK_CMD_JMP_DYNTBL: // jump to entry in dynamic table
                                 if (m->value != -1) {
                                     data = (*subtrack->dyn_tbl)[m->value];
                                     cmdArgU16 = (u16)((data[0] << 8) + data[1]);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                     m->pc = (u8*)&grp->seq_data[(uintptr_t)cmdArgU16];
+#else
+                                    m->pc = (u8*)&grp->seq_data[cmdArgU16];
+#endif
                                 }
                                 break;
                             case SUBTRACK_CMD_INIT_INSTRUMENTS: // Load subtrack bank and set instruments
                                 cmdArgU8 = cmdArgs[0];
                                 if (grp->bank_id != 0xFF) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                     cmdArgU16 = AG.map_header[(uintptr_t)grp->seq_id];
+#else
+                                    cmdArgU16 = AG.map_header[grp->seq_id];
+#endif
                                     lo_bits = Nas_MapHeaderReadByte(cmdArgU16);
                                     cmdArgU8 = Nas_MapHeaderReadByte(cmdArgU16 + lo_bits - cmdArgU8);
                                 }
@@ -1353,7 +1365,11 @@ static void Nas_SubSeq(sub* subtrack) {
                                 break;
                             case SUBTRACK_CMD_SET_ENVELOPE: // set envelope
                                 cmdArgU16 = (u16)cmdArgs[0];
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                 subtrack->adsr_env.envelope = (envdat*)&grp->seq_data[(uintptr_t)cmdArgU16];
+#else
+                                subtrack->adsr_env.envelope = (envdat*)&grp->seq_data[cmdArgU16];
+#endif
 #ifdef TARGET_PC
                                 pc_swap_envdat_seq(subtrack->adsr_env.envelope);
 #endif
@@ -1401,7 +1417,11 @@ static void Nas_SubSeq(sub* subtrack) {
                             case SUBTRACK_CMD_SET_INSTRUMENT_BANK: // set bank
                                 cmdArgU8 = cmdArgs[0];
                                 if (grp->bank_id != 0xFF) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                     cmdArgU16 = AG.map_header[(uintptr_t)grp->seq_id]; // get offset for bank info for seq
+#else
+                                    cmdArgU16 = AG.map_header[grp->seq_id]; // get offset for bank info for seq
+#endif
                                     lo_bits = Nas_MapHeaderReadByte(cmdArgU16); // read number of banks
                                     cmdArgU8 = Nas_MapHeaderReadByte(cmdArgU16 + lo_bits - cmdArgU8); // get bank id from inverse?
                                 }
@@ -1413,7 +1433,11 @@ static void Nas_SubSeq(sub* subtrack) {
                             case SUBTRACK_CMD_WRITE_GROUP_SEQ: // write to sequence script
                                 cmdArgU8 = (u8)cmdArgs[0];
                                 cmdArgU16 = (u16)cmdArgs[1];
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                 seq_data = &grp->seq_data[(uintptr_t)cmdArgU16];
+#else
+                                seq_data = &grp->seq_data[cmdArgU16];
+#endif
                                 seq_data[0] = (u8)m->value + cmdArgU8;
                                 break;
                             case SUBTRACK_CMD_MACRO_SUBTRACT: // subtract macro value
@@ -1447,7 +1471,11 @@ static void Nas_SubSeq(sub* subtrack) {
                                 break;
                             case SUBTRACK_CMD_WRITE_DYNVAL_TO_GROUP_SEQ: // write u16 into sequence script
                                 cmdArgU16 = (u16)cmdArgs[0];
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                 seq_data = &grp->seq_data[(uintptr_t)cmdArgU16];
+#else
+                                seq_data = &grp->seq_data[cmdArgU16];
+#endif
                                 seq_data[0] = (subtrack->dynamic_value >> 8) & 0xFF;
                                 seq_data[1] = subtrack->dynamic_value & 0xFF;
                                 break;
@@ -1474,7 +1502,11 @@ static void Nas_SubSeq(sub* subtrack) {
                                 subtrack->reverb_idx = cmdArgU8;
                                 break;
                             case SUBTRACK_CMD_DYNTBL_CALL: // dynamic call
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                 if (m->value != -1 && m->depth < ARRAY_COUNT(m->stack)) {
+#else
+                                if (m->value != -1) {
+#endif
                                     data = (*subtrack->dyn_tbl)[m->value];
                                     /* @BUG - missing stack depth bounds check */
                                     m->stack[m->depth++] = m->pc;
@@ -1560,7 +1592,11 @@ static void Nas_SubSeq(sub* subtrack) {
                                 cmdArgU16 = (u16)cmdArgs[0];
                                 new_var3 = cmdArgU16 + (m->value * 2);
                                 subtrack->dynamic_value =
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                     (grp->seq_data[(uintptr_t)new_var3] << 8) | grp->seq_data[(uintptr_t)new_var3 + 1];
+#else
+                                    (grp->seq_data[new_var3] << 8) | grp->seq_data[new_var3 + 1];
+#endif
                                 break;
                             case SUBTRACK_CMD_SET_DYNTBL_FROM_GROUP_SEQ: // set dynamic table
                                 subtrack->dyn_tbl = (unsigned char(*)[][2]) & grp->seq_data[subtrack->dynamic_value];
@@ -1647,7 +1683,11 @@ static void Nas_SubSeq(sub* subtrack) {
                             case SUBTRACK_CMD_WRITE_GOUP_SEQ_OFFSET_BY_SUBTRACK: // Set value in sequence data to macro register value plus arg value
                                 cmdArgU8 = (u8)cmdArgs[0];
                                 cmdArgU16 = (u16)cmdArgs[1];
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                 seq_data = &grp->seq_data[(uintptr_t)(cmdArgU16 + subtrack->subtrack_idx)];
+#else
+                                seq_data = &grp->seq_data[cmdArgU16 + subtrack->subtrack_idx];
+#endif
                                 *seq_data = (u8)m->value + cmdArgU8;
                                 break;
                             case SUBTRACK_CMD_MACRO_BIT_MOD: // manipulate macro register value
@@ -1695,7 +1735,11 @@ static void Nas_SubSeq(sub* subtrack) {
                         case SUBTRACK_CMD_NOTE_SET_PC_MASK: // start note layer and initialize note macro pc
                             cmdArgU16 = Nas_ReadWordData(m);
                             if (Nas_EntryNoteTrack(subtrack, lo_bits) == 0) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                     subtrack->note_layers[lo_bits]->macro_player.pc = &grp->seq_data[(uintptr_t)cmdArgU16];
+#else
+                                subtrack->note_layers[lo_bits]->macro_player.pc = &grp->seq_data[cmdArgU16];
+#endif
                             }
                             break;
                         // [0x90 - 0x97] NOTE: 0x94-0x97 are invalid and will be changed to 0x90.
@@ -1708,7 +1752,11 @@ static void Nas_SubSeq(sub* subtrack) {
                                 if (Nas_EntryNoteTrack(subtrack, lo_bits) != -1) {
                                     data = (*subtrack->dyn_tbl)[m->value];
                                     cmdArgU16 = (u16)((data[0] << 8) + data[1]);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                     subtrack->note_layers[lo_bits]->macro_player.pc = &grp->seq_data[(uintptr_t)cmdArgU16];
+#else
+                                    subtrack->note_layers[lo_bits]->macro_player.pc = &grp->seq_data[cmdArgU16];
+#endif
                                 }
                             }
                             break;
@@ -1764,7 +1812,11 @@ static void Nas_SubSeq(sub* subtrack) {
                         // [0x20, 0x2F]
                         case SUBTRACK_CMD_START_SUBTRACK_MASK: // start subtrack
                             cmdArgU16 = (u16)Nas_ReadWordData(m);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                             Nas_OpenSub(grp, lo_bits, &grp->seq_data[(uintptr_t)cmdArgU16]);
+#else
+                            Nas_OpenSub(grp, lo_bits, &grp->seq_data[cmdArgU16]);
+#endif
                             break;
                         // [0x30, 0x3F]
                         case SUBTRACK_CMD_WRITE_SUBTRACK_PORT_MASK: // set subtrack port to this subtrack's macro register value
@@ -1955,7 +2007,11 @@ static void Nas_GroupSeq(group* grp) {
                             case GRP_CMD_SET_SHORT_NOTE_GATE_TIME_TBL: // set short note gate-time table
                             case GRP_CMD_SET_SHORT_NOTE_VELOCITY_TBL: // set short note velocity table
                                 temp = Nas_ReadWordData(m);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                 data3 = &grp->seq_data[(uintptr_t)temp];
+#else
+                                data3 = &grp->seq_data[temp];
+#endif
                                 if (cmd == GRP_CMD_SET_SHORT_NOTE_VELOCITY_TBL) {
                                     grp->short_note_velocity_tbl = data3;
                                 } else {
@@ -1996,7 +2052,11 @@ static void Nas_GroupSeq(group* grp) {
                             case GRP_CMD_MACRO_VALUE_STORE: // write macro register value to sequence data
                                 cmd = Nas_ReadByteData(m);
                                 temp = Nas_ReadWordData(m);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                 data2 = &grp->seq_data[(uintptr_t)temp];
+#else
+                                data2 = &grp->seq_data[temp];
+#endif
                                 data2[0] = (u8)m->value + cmd;
                                 break;
                             case GRP_CMD_DYNAMIC_BRANCH: // dynamic lookup branch (no return)
@@ -2032,9 +2092,17 @@ static void Nas_GroupSeq(group* grp) {
                             case GRP_CMD_MUTE_SUBTRACKS: // mute subtracks from u16 bitfield
                                 temp = Nas_ReadWordData(m);
                                 if (m->value != -1) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                     uintptr_t mask_idx = (uintptr_t)temp + (uintptr_t)m->value * 2;
+#else
+                                    u32 mask_idx = (u32)(temp + m->value * 2);
+#endif
                                     temp = (grp->seq_data[mask_idx] << 8) | grp->seq_data[mask_idx + 1];
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                     for (i = 0; i < (s32)ARRAY_COUNT(grp->subtracks); i++) {
+#else
+                                    for (i = 0; i < ARRAY_COUNT(grp->subtracks); i++) {
+#endif
                                         grp->subtracks[i]->muted = temp & 1;
                                         temp = temp >> 1;
                                     }
@@ -2081,7 +2149,11 @@ static void Nas_GroupSeq(group* grp) {
                             // [0x90, 0x9F]
                             case GRP_CMD_START_SUBTRACK_MASK: // start subtrack w/ absolute script address
                                 temp = Nas_ReadWordData(m);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                 Nas_OpenSub(grp, cmd_lo_bits, &grp->seq_data[(uintptr_t)temp]);
+#else
+                                Nas_OpenSub(grp, cmd_lo_bits, &grp->seq_data[temp]);
+#endif
                                 break;
                             // [0xA0, 0xAF]
                             case GRP_CMD_START_RELATIVE_SUBTRACK_MASK: // start subtrack w/ relative script address
@@ -2092,7 +2164,11 @@ static void Nas_GroupSeq(group* grp) {
                             case GRP_CMD_SEQ_LOAD_MASK: // load sequence
                                 cmd = Nas_ReadByteData(m);
                                 temp = Nas_ReadWordData(m);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                                 data2 = &grp->seq_data[(uintptr_t)temp];
+#else
+                                data2 = &grp->seq_data[temp];
+#endif
                                 SeqLoad(cmd, data2, &grp->port[cmd_lo_bits]);
                                 break;
                             // [0x60, 0x67] @BUG - ([0x68, 0x6F] end here but would result in undefined behavior)

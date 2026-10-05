@@ -5,8 +5,12 @@
 /* On PC, we don't have MSL_C - use standard math */
 #include <math.h>
 #include <string.h>
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef __APPLE__
 #include <stdlib.h>  /* alloca() on macOS */
+#else
+#include <malloc.h>  /* for alloca() */
+#endif
 #else
 #include <malloc.h>  /* for alloca() */
 #endif
@@ -40,6 +44,7 @@
 
 typedef signed char s8;
 typedef signed short s16;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 #include <stdint.h>
 typedef int32_t  s32;
@@ -57,8 +62,27 @@ typedef unsigned long size_t;
 typedef signed long long s64;
 typedef unsigned long long u64;
 #endif
+#else
+typedef signed long s32;
+typedef signed long long s64;
 typedef unsigned char u8;
 typedef unsigned short u16;
+typedef unsigned long u32;
+#ifndef TARGET_PC
+#ifndef _SIZE_T_DEF
+#define _SIZE_T_DEF
+typedef unsigned long size_t;
+#endif
+#else
+#include <stddef.h>
+#endif
+#endif
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+typedef unsigned char u8;
+typedef unsigned short u16;
+#else
+typedef unsigned long long u64;
+#endif
 typedef unsigned int uint;
 
 typedef volatile u8 vu8;

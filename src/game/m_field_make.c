@@ -867,7 +867,12 @@ static mFM_fdinfo_c* mFM_MakeField(u16 scene, u16 bg_max, u8 bg_num) {
 
     for (i = 0; i < field_info->bg_num; i++) {
         field_info->bg_display_list_p[i] = (u8*)zelda_malloc(field_info->bg_max);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         field_info->bg_display_list_p[i] = (u8*)(((uintptr_t)(field_info->bg_display_list_p[i]) + (16 - 1)) & ~(uintptr_t)(16 - 1));
+#else
+        field_info->bg_display_list_p[i] = (u8*)((u32)(field_info->bg_display_list_p[i]) + (16 - 1));
+        field_info->bg_display_list_p[i] = (u8*)((u32)(field_info->bg_display_list_p[i]) & (~(16 - 1)));
+#endif
     }
 
     mFM_set_pal_p(&field_info->field_palette);

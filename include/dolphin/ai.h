@@ -17,8 +17,12 @@ typedef void (*AIDCallback)();
 #define AI_SAMPLERATE_48KHZ 1
 
 AIDCallback AIRegisterDMACallback(AIDCallback callback);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 void AIInitDMA(uintptr_t start_addr, u32 length);
+#else
+void AIInitDMA(u32 start_addr, u32 length);
+#endif
 #else
 void AIInitDMA(u32 start_addr, u32 length);
 #endif

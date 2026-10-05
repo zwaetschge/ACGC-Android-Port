@@ -4,7 +4,12 @@
 void CARDInit(void);
 s32 CARDGetResultCode(s32 chan);
 s32 CARDFreeBlocks(s32 chan, s32 *byteNotUsed, s32 *filesNotUsed);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifndef TARGET_PC
+long CARDGetEncoding(long chan, unsigned short * encode);
+long CARDGetMemSize(long chan, unsigned short * size);
+#endif
+#else
 long CARDGetEncoding(long chan, unsigned short * encode);
 long CARDGetMemSize(long chan, unsigned short * size);
 #endif

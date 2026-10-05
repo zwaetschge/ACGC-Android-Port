@@ -34,9 +34,14 @@ extern void Na_RhythmInit() {
         rhythm_buffer[i].current_subtrack = i;
     }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     Nap_SetPtr(NA_MAKE_COMMAND(228, 0, 0, 0), (void*)Na_GetRhythmSeNum);
     Nap_SetPtr(NA_MAKE_COMMAND(228, 0, 0, 1), (void*)Na_RhythmGrpProcess);
+#else
+    Nap_SetS32(NA_MAKE_COMMAND(228, 0, 0, 0), (s32)Na_GetRhythmSeNum);
+    Nap_SetS32(NA_MAKE_COMMAND(228, 0, 0, 1), (s32)Na_RhythmGrpProcess);
+#endif
 #else
     Nap_SetS32(NA_MAKE_COMMAND(228, 0, 0, 0), (s32)Na_GetRhythmSeNum);
     Nap_SetS32(NA_MAKE_COMMAND(228, 0, 0, 1), (s32)Na_RhythmGrpProcess);

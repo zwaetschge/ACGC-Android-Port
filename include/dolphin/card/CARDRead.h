@@ -2,7 +2,11 @@
 #define _DOLPHIN_CARDREAD_H_
 
 s32 CARDReadAsync(CARDFileInfo *fileInfo, void *buf, s32 length, s32 offset, CARDCallback callback);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifndef TARGET_PC
+long CARDRead(struct CARDFileInfo * fileInfo, void * buf, long length, long offset);
+#endif
+#else
 long CARDRead(struct CARDFileInfo * fileInfo, void * buf, long length, long offset);
 #endif
 s32 CARDCancel(CARDFileInfo *fileInfo);

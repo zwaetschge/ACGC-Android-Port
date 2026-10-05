@@ -3,8 +3,11 @@
 
 #include "types.h"
 #include "string.h"
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 #include <string.h>
+#endif
+#else
 #endif
 #include "dolphin/gx.h"
 #include "dolphin/os.h"

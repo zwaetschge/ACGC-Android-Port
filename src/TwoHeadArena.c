@@ -60,19 +60,32 @@ extern void* THA_alloc(TwoHeadArena* this, size_t siz) {
 */
 
 extern void* THA_alloc16(TwoHeadArena* this, size_t siz) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
   const uintptr_t mask = ~(uintptr_t)(16 - 1);
   this->tail_p = (char*)((((uintptr_t)this->tail_p & mask) - siz) & mask);
+#else
+  const int mask = ~(16 - 1);
+  this->tail_p = (char*)((((u32)this->tail_p & mask) - siz) & mask);
+#endif
   return this->tail_p;
 }
 
 extern void* THA_allocAlign(TwoHeadArena* this, size_t siz, int mask) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
   uintptr_t umask = (uintptr_t)(intptr_t)mask; /* sign-extend mask to pointer width */
   this->tail_p = (char*)((((uintptr_t)this->tail_p & umask) - siz) & umask);
+#else
+  this->tail_p = (char*)((((u32)this->tail_p & mask) - siz) & mask);
+#endif
   return this->tail_p;
 }
 
 extern int THA_getFreeBytesAlign(TwoHeadArena* this, int mask) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
   return (int)((intptr_t)this->tail_p - ((intptr_t)mask & (intptr_t)(this->head_p + ~mask)));
+#else
+  return (int)this->tail_p - (mask & (int)(this->head_p + ~mask));
+#endif
 }
 
 extern int THA_getFreeBytes16(TwoHeadArena* this) {

@@ -36,7 +36,11 @@ extern u32 Neos_Update(s16* dst) {
 
     u32 prev = (cur + 1) & 1;
     if (pc_tasks[prev]) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         RspStart2(pc_task_buf[prev], pc_tasks[prev], 0);
+#else
+        RspStart2((u32*)pc_task_buf[prev], pc_tasks[prev], 0);
+#endif
         pc_tasks[prev] = 0;
         Jac_bcopy(tmp_buf, dst, DAC_SIZE * 2);
     } else {

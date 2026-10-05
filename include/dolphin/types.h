@@ -5,12 +5,19 @@ typedef signed   char          s8;
 typedef unsigned char          u8;
 typedef signed   short int     s16;
 typedef unsigned short int     u16;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 #include <stdint.h>
 typedef int32_t                s32;
 typedef uint32_t               u32;
 typedef int64_t                s64;
 typedef uint64_t               u64;
+#else
+typedef signed   long          s32;
+typedef unsigned long          u32;
+typedef signed   long long int s64;
+typedef unsigned long long int u64;
+#endif
 #else
 typedef signed   long          s32;
 typedef unsigned long          u32;
@@ -57,10 +64,15 @@ typedef int BOOL;
 #endif
 #endif
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifndef INT_MIN
 #define INT_MIN -2147483648
 #endif
 #ifndef INT_MAX
+#define INT_MAX 2147483647
+#endif
+#else
+#define INT_MIN -2147483648
 #define INT_MAX 2147483647
 #endif
 

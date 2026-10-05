@@ -111,7 +111,7 @@ class JKRArchive : public JKRFileLoader {
         u32 mFlag;       // _04
         u32 mDataOffset; // _08
         u32 mSize;       // _0C
-#ifdef TARGET_PC
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         /* On 64-bit, void* is 8 bytes which breaks the 0x14-byte RARC
          * binary layout. Keep a u32 placeholder here to preserve stride.
          * Actual mData pointers are stored in a parallel array via
@@ -122,7 +122,7 @@ class JKRArchive : public JKRFileLoader {
 #endif
     };
 
-#ifdef TARGET_PC
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     /* On 64-bit, SDIFileEntry.mData is a u32 placeholder (not a real pointer)
      * to keep the struct at 0x14 bytes matching the RARC binary layout.
      * Store actual mData pointers in a parallel heap-allocated array. */
@@ -139,9 +139,17 @@ class JKRArchive : public JKRFileLoader {
         int idx = (int)(entry - mFileEntries);
         if (idx >= 0 && (u32)idx < mArcInfoBlock->num_file_entries) mFileEntryDataPtrs[idx] = data;
     }
+#define JKR_CLEAR_FILE_ENTRY_DATA() (mFileEntryDataPtrs = nullptr)
+#define JKR_ALLOC_FILE_ENTRY_DATA() \
+    (mFileEntryDataPtrs = (void**)calloc(mArcInfoBlock->num_file_entries > 0 ? mArcInfoBlock->num_file_entries : 1, sizeof(void*)))
+#define JKR_FREE_FILE_ENTRY_DATA() \
+    do { free(mFileEntryDataPtrs); mFileEntryDataPtrs = nullptr; } while (0)
 #else
     void* getFileEntryData(SDIFileEntry* entry) const { return entry->mData; }
     void setFileEntryData(SDIFileEntry* entry, void* data) { entry->mData = data; }
+#define JKR_CLEAR_FILE_ENTRY_DATA() ((void)0)
+#define JKR_ALLOC_FILE_ENTRY_DATA() ((void)0)
+#define JKR_FREE_FILE_ENTRY_DATA() ((void)0)
 #endif
 
     struct SDirEntry {

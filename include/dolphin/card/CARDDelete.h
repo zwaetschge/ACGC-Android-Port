@@ -2,7 +2,11 @@
 #define _DOLPHIN_CARDDELETE_H_
 
 s32 CARDFastDeleteAsync(s32 chan, s32 fileNo, CARDCallback callback);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifndef TARGET_PC
+long CARDFastDelete(long chan, long fileNo);
+#endif
+#else
 long CARDFastDelete(long chan, long fileNo);
 #endif
 s32 CARDDeleteAsync(s32 chan, const char *fileName, CARDCallback callback);

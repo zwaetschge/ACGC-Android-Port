@@ -68,6 +68,7 @@ extern "C" {
 #define A_CMD_LOADCACHE     24
 #define A_CMD_EXIT          25
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 #define aUnkCmd3(pkt, a1, a2, a3)                                       \
 {                                                                       \
@@ -117,7 +118,33 @@ extern "C" {
 	_a->words.w1 = _SHIFTL(rampL, 16, 16) | _SHIFTL(rampR, 0, 16);		\
 }
 #endif
+#else
+#define aUnkCmd3(pkt, a1, a2, a3)                                       \
+{                                                                       \
+        Acmd *_a = (Acmd *)pkt;                                         \
+                                                                        \
+        _a->words.w0 = _SHIFTL(A_CMD_UNK3, 24, 8) | _SHIFTL(a3, 0, 16);     \
+        _a->words.w1 = _SHIFTL(a1, 16, 16) | _SHIFTL(a2, 0, 16);        \
+}
 
+#define	aHalfCut(pkt, src, dst, len)						\
+{									\
+	Acmd *_a = (Acmd *)pkt;						\
+									\
+	_a->words.w0 = _SHIFTL(A_CMD_HALFCUT, 24, 8) | _SHIFTL(len, 0, 16);    		\
+	_a->words.w1 = _SHIFTL(src, 16, 16) | _SHIFTL(dst, 0, 16);		\
+}
+
+#define	aSetEnvParam(pkt, revVol, rampRev, rampL, rampR)						\
+{									\
+	Acmd *_a = (Acmd *)pkt;						\
+									\
+	_a->words.w0 = _SHIFTL(A_CMD_SETENVPARAM, 24, 8) | _SHIFTL(revVol, 16, 8) | _SHIFTL(rampRev, 0, 16);    		\
+	_a->words.w1 = _SHIFTL(rampL, 16, 16) | _SHIFTL(rampR, 0, 16);		\
+}
+#endif
+
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 #define	aLoadCache(pkt, dst, src, len)						\
 {									\
@@ -167,6 +194,31 @@ extern "C" {
 	_a->words.w1 = (u32)(uintptr_t)(dst);	\
 }
 #endif
+#else
+#define	aLoadCache(pkt, dst, src, len)						\
+{									\
+	Acmd *_a = (Acmd *)pkt;						\
+									\
+	_a->words.w0 = _SHIFTL(A_CMD_LOADCACHE, 24, 8) | _SHIFTL((len) >> 4, 16, 8) | _SHIFTL(src, 0, 16);    		\
+	_a->words.w1 = (u32)(dst);		\
+}
+
+#define	aLoadBuffer2(pkt, dst, src, len)						\
+{									\
+	Acmd *_a = (Acmd *)pkt;						\
+									\
+	_a->words.w0 = _SHIFTL(A_CMD_LOADBUFFER2, 24, 8) | _SHIFTL((len) >> 4, 16, 8) | _SHIFTL(src, 0, 16);    		\
+	_a->words.w1 = (u32)(dst);		\
+}
+
+#define	aSaveBuffer2(pkt, dst, src, len)						\
+{									\
+	Acmd *_a = (Acmd *)pkt;						\
+									\
+	_a->words.w0 = _SHIFTL(A_CMD_SAVEBUFFER2, 24, 8) | _SHIFTL((len) >> 4, 16, 8) | _SHIFTL(src, 0, 16);    		\
+	_a->words.w1 = (u32)(dst);		\
+}
+#endif
 
 #define	aInterleave2(pkt, o, l, r, c)						\
 {									\
@@ -176,6 +228,7 @@ extern "C" {
     _a->words.w1 = _SHIFTL(l, 16, 16) | _SHIFTL(r, 0, 16);          \
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 #define	aSetEnvParam2(pkt, volL, volR)						\
 {									\
@@ -193,7 +246,17 @@ extern "C" {
 	_a->words.w1 = _SHIFTL(volL, 16, 16) | _SHIFTL(volR, 0, 16);		\
 }
 #endif
+#else
+#define	aSetEnvParam2(pkt, volL, volR)						\
+{									\
+	Acmd *_a = (Acmd *)pkt;						\
+									\
+	_a->words.w0 = _SHIFTL(A_CMD_SETENVPARAM2, 24, 8);    		\
+	_a->words.w1 = _SHIFTL(volL, 16, 16) | _SHIFTL(volR, 0, 16);		\
+}
+#endif
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 #define aPCM8dec(pkt, flags, state)						\
 {									\
@@ -265,6 +328,41 @@ extern "C" {
         _a->words.w1 = (unsigned int)(uintptr_t)(addr);                            \
 }
 #endif
+#else
+#define aPCM8dec(pkt, flags, state)						\
+{									\
+	Acmd *_a = (Acmd *)pkt;						\
+									\
+	_a->words.w0 = _SHIFTL(A_CMD_PCM8DEC, 24, 8) | _SHIFTL(flags, 16, 8);    		\
+	_a->words.w1 = (u32)(state);		\
+}
+
+#define aDistFilter(pkt, gain, dmem_in, dmem_out, len)						\
+{									\
+	Acmd *_a = (Acmd *)pkt;						\
+									\
+	_a->words.w0 = _SHIFTL(A_CMD_DISTFILTER, 24, 8) | _SHIFTL(gain, 16, 8) | _SHIFTL(len, 0, 16);    		\
+	_a->words.w1 = _SHIFTL(dmem_in, 16, 16) | _SHIFTL(dmem_out, 0, 16);		\
+}
+
+#define aNoiseFilter(pkt, buf, f, addr, len)                               \
+{                                                                       \
+        Acmd *_a = (Acmd *)pkt;                                         \
+                                                                        \
+        _a->words.w0 = _SHIFTL(A_CMD_SPNOOP, 24, 8) | _SHIFTL(f, 16, 8) |   \
+                    _SHIFTL(addr, 0, 16);                         \
+        _a->words.w1 = _SHIFTL(len, 16, 16) | _SHIFTL(buf, 0, 16);                            \
+}
+
+#define aFirFilter(pkt, f, bufSize, addr)                               \
+{                                                                       \
+        Acmd *_a = (Acmd *)pkt;                                         \
+                                                                        \
+        _a->words.w0 = _SHIFTL(A_CMD_FIRFILTER, 24, 8) | _SHIFTL(f, 16, 8) |   \
+                    _SHIFTL(bufSize, 0, 16);                         \
+        _a->words.w1 = (unsigned int)(addr);                            \
+}
+#endif
 
 #define aFirLoadTable(pkt, size, addr) aFirFilter(pkt, 2, size, addr)
 
@@ -279,6 +377,7 @@ extern "C" {
         _a->words.w1 = (unsigned int)(m);                               \
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 #define aAddMixer(pkt, count, dmemi, dmemo, a4)                         \
 {                                                                       \
@@ -298,6 +397,26 @@ extern "C" {
                 ((u16)pitch));                                 \
         _a->pc.w1 = ((u16)pitchAccu);                       \
 }
+#else
+#define aAddMixer(pkt, count, dmemi, dmemo, a4)                         \
+{                                                                       \
+        Acmd *_a = (Acmd *)pkt;                                         \
+                                                                        \
+        _a->words.w0 = (_SHIFTL(A_CMD_ADDMIXER, 24, 8) |                    \
+                _SHIFTL(count >> 4, 16, 8) | _SHIFTL(a4, 0, 16));       \
+        _a->words.w1 = _SHIFTL(dmemi, 16, 16) | _SHIFTL(dmemo, 0, 16);  \
+}
+
+// from MM
+#define aResampleZoh(pkt, pitch, pitchAccu)                             \
+{                                                                       \
+        Acmd *_a = (Acmd *)pkt;                                         \
+                                                                        \
+        _a->words.w0 = (_SHIFTL(A_CMD_RESAMPLE_ZOH, 24, 8) |                \
+                _SHIFTL(pitch, 0, 16));                                 \
+        _a->words.w1 = _SHIFTL(pitchAccu, 0, 16);                       \
+}
+#endif
 #else
 #define aAddMixer(pkt, count, dmemi, dmemo, a4)                         \
 {                                                                       \
@@ -1090,9 +1209,14 @@ typedef enum NASubtrack {
 #define NA_COMMAND_AUDIO_GROUP_SET_APPLY_SUBTRACK_MASK(group, mask) \
     Nap_SetU16(NA_MAKE_COMMAND(AUDIOCMD_SET_GROUP_MASK, group, 0, 0), mask)
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 #define NA_COMMAND_AUDIO_SUBTRACK_SET_FILTER(group, subtrack, filterCutoff, pFilter) \
     Nap_SetPtr(NA_MAKE_COMMAND(AUDIOCMD_OP_SUB_SET_FILTER, group, subtrack, filterCutoff), (void*)pFilter)
+#else
+#define NA_COMMAND_AUDIO_SUBTRACK_SET_FILTER(group, subtrack, filterCutoff, pFilter) \
+    Nap_SetS32(NA_MAKE_COMMAND(AUDIOCMD_OP_SUB_SET_FILTER, group, subtrack, filterCutoff), (s32)pFilter)
+#endif
 #else
 #define NA_COMMAND_AUDIO_SUBTRACK_SET_FILTER(group, subtrack, filterCutoff, pFilter) \
     Nap_SetS32(NA_MAKE_COMMAND(AUDIOCMD_OP_SUB_SET_FILTER, group, subtrack, filterCutoff), (s32)pFilter)

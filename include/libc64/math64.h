@@ -28,8 +28,12 @@ f32 facos(f32);
 s16 sins(u16);
 s16 coss(u16);
 f32 fatan2(f32, f32);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 f32 game_fsqrt(f32);
 #define fsqrt game_fsqrt
+#else
+f32 fsqrt(f32);
+#endif
 f32 facos(f32);
 #endif
 

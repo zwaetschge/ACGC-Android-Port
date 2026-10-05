@@ -648,7 +648,11 @@ extern Acmd* Nas_DriveRsp(s16* aiBuf, s32 aiBufLen, Acmd* cmd, s32 updateIndex) 
     aInterleave2(cmd++, DMEM_TEMP, DMEM_LEFT_CH, DMEM_RIGHT_CH, size);
 
     if (NA_DACOUT_CALLBACK != NULL) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         cmd = NA_DACOUT_CALLBACK(cmd, 2 * size, updateIndex);
+#else
+        cmd = (Acmd*)((u32)NA_DACOUT_CALLBACK(cmd, 2 * size, updateIndex) & 0xFF); // ?? what is this? this has to be a bug
+#endif
     }
 
     aSaveBuffer2(cmd++, aiBuf, DMEM_TEMP, JAC_FRAMESAMPLES);
@@ -912,15 +916,31 @@ extern Acmd* Nas_SynthMain(s32 chan_id, commonch* common, driverch* driver, s16*
                         break;
 
                     case CODEC_REVERB:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                         reverbAddrSrc = (void*)(uintptr_t)-1;
+#else
+                        reverbAddrSrc = (void*)0xFFFFFFFF;
+#endif
                         if (NA_SOUND_CALLBACK != NULL) {
                             // ???
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                             reverbAddrSrc = NA_SOUND_CALLBACK(sample, numSamplesToLoadAdj, flags, chan_id);
+#else
+                            reverbAddrSrc = (void*)((u32)NA_SOUND_CALLBACK(sample, numSamplesToLoadAdj, flags, chan_id) & 0xFF);
+#endif
                         }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                         if (reverbAddrSrc == (void*)(uintptr_t)-1) {
+#else
+                        if ((s32)reverbAddrSrc == 0xFFFFFFFF) {
+#endif
                             sampleFinished = true;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                         } else if (reverbAddrSrc == NULL) {
+#else
+                        } else if ((s32)reverbAddrSrc == 0) {
+#endif
                             return cmd;
                         } else {
                             Nas_LoadBuffer2(cmd++, DMEM_UNCOMPRESSED_NOTE,
@@ -1176,7 +1196,11 @@ codec_continue_and_skip:
         if (!STOP_VELOCONV) {
             // Load the velocity convolution table into DMEM_0x800
             s32 vel_conv_idx = driver->vel_conv_table_idx;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             aLoadBuffer2(cmd++, VELOCONV_TABLE[vel_conv_idx], 0x800, sizeof(VELOCONV_TABLE[vel_conv_idx]));
+#else
+            aLoadBuffer2(cmd++, (u32)VELOCONV_TABLE[vel_conv_idx], 0x800, sizeof(VELOCONV_TABLE[vel_conv_idx]));
+#endif
             aUnkCmd3(cmd++, DMEM_TEMP, 0x800, samples_per_update);
         }
 
@@ -1328,13 +1352,21 @@ extern Acmd* Nas_Synth_Envelope(Acmd* cmd, commonch* common, driverch* driver, s
         }
     }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if (targetVolLeft != curVolLeft) {
+#else
+    if (targetVolLeft != (u32)curVolLeft) {
+#endif
         rampLeft = (targetVolLeft - (s32)curVolLeft) / (samples_per_update >> 3);
     } else {
         rampLeft = 0;
     }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if (targetVolRight != curVolRight) {
+#else
+    if (targetVolRight != (u32)curVolRight) {
+#endif
         rampRight = (targetVolRight - (s32)curVolRight) / (samples_per_update >> 3);
     } else {
         rampRight = 0;

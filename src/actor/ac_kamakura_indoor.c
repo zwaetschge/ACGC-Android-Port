@@ -322,8 +322,11 @@ static void Kamakura_Indoor_Actor_move(ACTOR* actorx, GAME* game) {
     s16 timer;
 
     sAdo_OngenPos((uintptr_t)actorx, NA_SE_KOKORO_TOGURU, &k_indoor->mochi.pos);
-    if ((play->game_frame & 7) == 0) {
-        xyz_t soba_yuge_pos = k_indoor->mochi.pos;
+    k_indoor->anim_frame += (f32)game->graph->dt_num_60fps_frames;
+    while (k_indoor->anim_frame >= 1024.0f) {
+        k_indoor->anim_frame -= 1024.0f;
+    }
+    counter = (u32)k_indoor->anim_frame;
 
     {
         static float dt_accum = 0.0f;

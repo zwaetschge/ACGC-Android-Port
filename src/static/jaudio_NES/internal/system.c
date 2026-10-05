@@ -9,12 +9,18 @@
 #include "jaudio_NES/track.h"
 #include "jaudio_NES/sub_sys.h"
 #include "jaudio_NES/audioheaders.h"
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #include <stdlib.h>
+#else
+#endif
 #include <dolphin/os.h>
 #ifdef TARGET_PC
 #include <dolphin/ar.h>
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #include <stdlib.h>
 #include <string.h>
+#else
+#endif
 #endif
 
 #define MK_BGLOAD_MSG(retData, tableType, id, loadStatus) \
@@ -241,6 +247,7 @@ static void pc_swap_perc_ptr_array(u32* perc_tbl, s32 n_perc) {
 }
 
 static u32 pc_swap_bank_init_count = 0;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 
 /*=== GC-compatible struct layouts for 64-bit ROM data parsing ===
  * On GC, sizeof(void*)==4. These structs use u32 for pointer fields
@@ -649,9 +656,16 @@ static void Nas_BankOfsToAddr_Inner_PC(s32 bank_id, u8* ctrl_p, WaveMedia* wave_
         AG.voice_info[bank_id].instruments = new_inst_array;
     }
 }
+#else
+#endif
 #endif /* TARGET_PC */
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+/* Na_SyncProc returns the sample address on 64-bit (see jaudio_NES/system.h) */
+static void* Nas_GetSyncDummy(u8* param0, s32 param1);
+#else
 static s32 Nas_GetSyncDummy(u8* param0, s32 param1);
+#endif
 
 BOOL AUDIO_SYSTEM_READY = FALSE;
 static void* FASTDMA_BUFFER = NULL;
@@ -672,8 +686,12 @@ static s32 __Nas_StartSeq(s32 group_idx, s32 seq_id, s32 param);
 static u8* __Load_Bank(s32 table_type, s32 id, s32* did_alloc);
 static uintptr_t __Load_Wave(s32 wave_id, u32* medium, s32 no_load);
 static void* __Check_Cache(s32 table_type, s32 id);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 static void __WaveTouch(wtstr* wavetouch_str, uintptr_t ram_addr, WaveMedia* wave_media);
+#else
+static void __WaveTouch(wtstr* wavetouch_str, u32 ram_addr, WaveMedia* wave_media);
+#endif
 #else
 static void __WaveTouch(wtstr* wavetouch_str, u32 ram_addr, WaveMedia* wave_media);
 #endif
@@ -751,7 +769,11 @@ void* Nas_WaveDmaCallBack(uintptr_t device_addr, u32 size, s32 arg2, u8* waveloa
     if (arg2 != 0 || *waveload_idx >= AG.waveload_count) {
         for (i = AG.waveload_count; i < AG.num_waveloads; i++) {
             waveload = &AG.waveload_list[i];
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             bufferPos = (s32)(device_addr - waveload->device_addr);
+#else
+            bufferPos = device_addr - waveload->device_addr;
+#endif
             if (0 <= bufferPos && (u32)bufferPos <= waveload->size - size) {
                 // We already have a WAVELOAD request for this memory range.
                 if (waveload->time_to_live == 0 && AG.waveload_dma_queue1_rpos != AG.waveload_dma_queue1_wpos) {
@@ -819,7 +841,11 @@ void* Nas_WaveDmaCallBack(uintptr_t device_addr, u32 size, s32 arg2, u8* waveloa
     }
 
     transfer = waveload->size;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     waveloadDevAddr = ALIGN_PREV((uintptr_t)device_addr, 32);
+#else
+    waveloadDevAddr = ALIGN_PREV(device_addr, 32);
+#endif
     waveload->time_to_live = 3;
     waveload->device_addr = waveloadDevAddr;
     waveload->size_unused = transfer;
@@ -827,7 +853,11 @@ void* Nas_WaveDmaCallBack(uintptr_t device_addr, u32 size, s32 arg2, u8* waveloa
                  0 /* OS_READ */, waveloadDevAddr, waveload->ram_addr, transfer, &AG.cur_audio_frame_dma_queue, medium,
                  (s8*)"SUPERDMA");
     *waveload_idx = waveloadIndex;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     return (void*)((uintptr_t)device_addr - (uintptr_t)waveloadDevAddr + (uintptr_t)waveload->ram_addr);
+#else
+    return (device_addr - waveloadDevAddr) + waveload->ram_addr;
+#endif
 }
 
 void Nas_WaveDmaNew(s32 n_channels) {
@@ -977,6 +1007,7 @@ void Nas_WriteIDwaveOnly(s32 id, s32 status) {
     }
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 static uintptr_t* pc_alloc_relocs(ArcHeader* header) {
     return (uintptr_t*)calloc(header->numEntries, sizeof(uintptr_t));
@@ -1006,12 +1037,15 @@ static void pc_set_entry_addr(ArcHeader* header, s32 idx, uintptr_t addr) {
 }
 #endif
 
+#else
+#endif
 void Nas_BankHeaderInit(ArcHeader* header, u8* data, u16 medium) {
     s32 i;
 
     header->medium = medium;
     header->pData = data;
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     /* Allocate parallel array for 64-bit addresses */
     uintptr_t* relocs = pc_alloc_relocs(header);
@@ -1020,7 +1054,10 @@ void Nas_BankHeaderInit(ArcHeader* header, u8* data, u16 medium) {
     else if (header == AG.wave_header) AG.wave_relocs = relocs;
 #endif
 
+#else
+#endif
     for (i = 0; i < header->numEntries; i++) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
         uintptr_t addr = (uintptr_t)header->entries[i].addr;
         if (header->entries[i].size != 0 && header->entries[i].medium == MEDIUM_CART) {
@@ -1030,6 +1067,11 @@ void Nas_BankHeaderInit(ArcHeader* header, u8* data, u16 medium) {
 #else
         if (header->entries[i].size != 0 && header->entries[i].medium == MEDIUM_CART) {
             header->entries[i].addr += (uintptr_t)data;
+        }
+#endif
+#else
+        if (header->entries[i].size != 0 && header->entries[i].medium == MEDIUM_CART) {
+            header->entries[i].addr += (u32)data;
         }
 #endif
     }
@@ -1219,7 +1261,11 @@ void Nas_SetExtPointer(s32 table_type, s32 idx, s32 param_3, uintptr_t data) {
     if (header->entries[idx].medium == MEDIUM_RAM_UNLOADED) {
         switch (param_3) {
             case EXT_TYPE_DATA:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                 header->entries[idx].addr = data;
+#else
+                header->entries[idx].addr = (u32)data;
+#endif
                 break;
             case EXT_TYPE_SIZE:
                 header->entries[idx].size = data;
@@ -1320,8 +1366,12 @@ static uintptr_t __Load_Wave(s32 wave_id, u32* medium, s32 no_load) {
 
     if (header->entries[wave_id].cacheType == CACHE_LOAD_EITHER_NOSYNC || no_load == TRUE) {
         *medium = header->entries[wave_id].medium;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
         return pc_get_entry_addr(header, link_id);
+#else
+        return header->entries[link_id].addr;
+#endif
 #else
         return header->entries[link_id].addr;
 #endif
@@ -1334,8 +1384,12 @@ static uintptr_t __Load_Wave(s32 wave_id, u32* medium, s32 no_load) {
     }
 
     *medium = header->entries[wave_id].medium;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     return pc_get_entry_addr(header, link_id);
+#else
+    return header->entries[link_id].addr;
+#endif
 #else
     return header->entries[link_id].addr;
 #endif
@@ -1404,8 +1458,12 @@ static u8* __Load_Bank(s32 table_type, s32 id, s32* did_alloc) {
         size = ALIGN_NEXT(size, 32);
         medium = header->entries[id].medium;
         cache_type = header->entries[id].cacheType;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
         rom_addr = (u8*)pc_get_entry_addr(header, link_id);
+#else
+        rom_addr = (u8*)header->entries[link_id].addr;
+#endif
 #else
         rom_addr = (u8*)header->entries[link_id].addr;
 #endif
@@ -1452,10 +1510,16 @@ static u8* __Load_Bank(s32 table_type, s32 id, s32* did_alloc) {
             if (table_type == BANK_TABLE) {
                 size -= sizeof(ArcEntry);
                 vinfo = &AG.voice_info[link_id];
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
                 vinfo->num_instruments = BSWAP16(((u16*)rom_addr)[0]);
                 vinfo->num_drums = BSWAP16(((u16*)rom_addr)[1]);
                 vinfo->num_sfx = BSWAP16(((u16*)rom_addr)[2]);
+#else
+                vinfo->num_instruments = ((u16*)rom_addr)[0];
+                vinfo->num_drums = ((u16*)rom_addr)[1];
+                vinfo->num_sfx = ((u16*)rom_addr)[2];
+#endif
 #else
                 vinfo->num_instruments = ((u16*)rom_addr)[0];
                 vinfo->num_drums = ((u16*)rom_addr)[1];
@@ -1501,6 +1565,7 @@ static u8* __Load_Bank(s32 table_type, s32 id, s32* did_alloc) {
 static s32 __Link_BankNum(s32 type, s32 id) {
     ArcHeader* header = __Get_ArcHeader(type);
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     if (header == NULL) {
         fprintf(stderr, "[__Link_BankNum] FATAL: NULL header for type=%d id=%d\n", type, id);
@@ -1515,9 +1580,15 @@ static s32 __Link_BankNum(s32 type, s32 id) {
     }
 #endif
 
+#else
+#endif
     if (header->entries[id].size == 0) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
         id = (s32)pc_get_entry_addr(header, id);
+#else
+        id = header->entries[id].addr;
+#endif
 #else
         id = header->entries[id].addr;
 #endif
@@ -1555,6 +1626,7 @@ static ArcHeader* __Get_ArcHeader(s32 table_type) {
     }
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 #define OFS2RAM(base, ofs) ((uintptr_t)(ofs) + (uintptr_t)base)
 #define BANK_ENTRY(ctrl, idx) (((u32*)((uintptr_t)ctrl)) + idx)
@@ -1562,11 +1634,19 @@ static ArcHeader* __Get_ArcHeader(s32 table_type) {
 #define OFS2RAM(base, ofs) ((u32)(ofs) + (u32)base)
 #define BANK_ENTRY(ctrl, idx) (((u32*)((u32)ctrl)) + idx)
 #endif
+#else
+#define OFS2RAM(base, ofs) ((u32)(ofs) + (u32)base)
+#define BANK_ENTRY(ctrl, idx) (((u32*)((u32)ctrl)) + idx)
+#endif
 
 static void Nas_BankOfsToAddr_Inner(s32 bank_id, u8* ctrl_p, WaveMedia* wave_media) {
     u32 ofs;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     uintptr_t inst_ofs;
+#else
+    u32 inst_ofs;
+#endif
 #else
     u32 inst_ofs;
 #endif
@@ -1588,9 +1668,12 @@ static void Nas_BankOfsToAddr_Inner(s32 bank_id, u8* ctrl_p, WaveMedia* wave_med
         pc_swap_bank_ctrl_offsets(ctrl_p, n_ctrl_entries);
         pc_swap_bank_init_count++;
     }
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     /* On 64-bit, use the GC-layout-aware PC version that allocates new native structs */
     Nas_BankOfsToAddr_Inner_PC(bank_id, ctrl_p, wave_media);
     return;
+#else
+#endif
 #endif
 
     ofs = *BANK_ENTRY(ctrl_p, 0);
@@ -1603,8 +1686,12 @@ static void Nas_BankOfsToAddr_Inner(s32 bank_id, u8* ctrl_p, WaveMedia* wave_med
 #endif
 
         for (i = 0; i < n_perc_inst; i++) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
             inst_ofs = (uintptr_t)((perctable**)*BANK_ENTRY(ctrl_p, 0))[i];
+#else
+            inst_ofs = (u32)((perctable**)*BANK_ENTRY(ctrl_p, 0))[i];
+#endif
 #else
             inst_ofs = (u32)((perctable**)*BANK_ENTRY(ctrl_p, 0))[i];
 #endif
@@ -1612,8 +1699,12 @@ static void Nas_BankOfsToAddr_Inner(s32 bank_id, u8* ctrl_p, WaveMedia* wave_med
                 continue; // empty percussion/drum entry
             }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
             inst_ofs += (uintptr_t)ctrl_p; // OFS2RAM(ctrl_p, ofs);
+#else
+            inst_ofs += (u32)ctrl_p; // OFS2RAM(ctrl_p, ofs);
+#endif
 #else
             inst_ofs += (u32)ctrl_p; // OFS2RAM(ctrl_p, ofs);
 #endif
@@ -1629,6 +1720,7 @@ static void Nas_BankOfsToAddr_Inner(s32 bank_id, u8* ctrl_p, WaveMedia* wave_med
 #ifdef TARGET_PC
             pc_swap_perctable(percvt);
 #endif
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
             __WaveTouch(&percvt->tuned_sample, (uintptr_t)ctrl_p, wave_media);
 #else
@@ -1637,6 +1729,10 @@ static void Nas_BankOfsToAddr_Inner(s32 bank_id, u8* ctrl_p, WaveMedia* wave_med
 #ifdef TARGET_PC
             inst_ofs = (uintptr_t)percvt->envelope;
 #else
+            inst_ofs = (u32)percvt->envelope;
+#endif
+#else
+            __WaveTouch(&percvt->tuned_sample, (u32)ctrl_p, wave_media);
             inst_ofs = (u32)percvt->envelope;
 #endif
             percvt->envelope = (envdat*)OFS2RAM(ctrl_p, inst_ofs);
@@ -1661,8 +1757,12 @@ static void Nas_BankOfsToAddr_Inner(s32 bank_id, u8* ctrl_p, WaveMedia* wave_med
 #endif
 
         for (i = 0; i < n_sfx_inst; i++) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
             inst_ofs = (uintptr_t)(((percvoicetable*)*BANK_ENTRY(ctrl_p, 1)) + i);
+#else
+            inst_ofs = (u32)(((percvoicetable*)*BANK_ENTRY(ctrl_p, 1)) + i);
+#endif
 #else
             inst_ofs = (u32)(((percvoicetable*)*BANK_ENTRY(ctrl_p, 1)) + i);
 #endif
@@ -1673,10 +1773,14 @@ static void Nas_BankOfsToAddr_Inner(s32 bank_id, u8* ctrl_p, WaveMedia* wave_med
                 continue;
             }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
             __WaveTouch(&sfx->tuned_sample, (uintptr_t)ctrl_p, wave_media);
 #else
             __WaveTouch(&sfx->tuned_sample, (uintptr_t)ctrl_p, wave_media);
+#endif
+#else
+            __WaveTouch(&sfx->tuned_sample, (u32)ctrl_p, wave_media);
 #endif
         }
     }
@@ -1699,31 +1803,47 @@ static void Nas_BankOfsToAddr_Inner(s32 bank_id, u8* ctrl_p, WaveMedia* wave_med
 #endif
                 // Optional low pitch sample
                 if (inst->normal_range_low != 0) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
                     __WaveTouch(&inst->low_pitch_tuned_sample, (uintptr_t)ctrl_p, wave_media);
 #else
                     __WaveTouch(&inst->low_pitch_tuned_sample, (uintptr_t)ctrl_p, wave_media);
+#endif
+#else
+                    __WaveTouch(&inst->low_pitch_tuned_sample, (u32)ctrl_p, wave_media);
 #endif
                 }
 
                 // Standard sample, required by all instruments
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
                 __WaveTouch(&inst->normal_pitch_tuned_sample, (uintptr_t)ctrl_p, wave_media);
 #else
                 __WaveTouch(&inst->normal_pitch_tuned_sample, (uintptr_t)ctrl_p, wave_media);
+#endif
+#else
+                __WaveTouch(&inst->normal_pitch_tuned_sample, (u32)ctrl_p, wave_media);
 #endif
 
                 // Optional high pitch sample
                 if (inst->normal_range_high != 0x7F) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
                     __WaveTouch(&inst->high_pitch_tuned_sample, (uintptr_t)ctrl_p, wave_media);
 #else
                     __WaveTouch(&inst->high_pitch_tuned_sample, (uintptr_t)ctrl_p, wave_media);
 #endif
+#else
+                    __WaveTouch(&inst->high_pitch_tuned_sample, (u32)ctrl_p, wave_media);
+#endif
                 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
                 inst_ofs = (uintptr_t)inst->envelope;
+#else
+                inst_ofs = (u32)inst->envelope;
+#endif
 #else
                 inst_ofs = (u32)inst->envelope;
 #endif
@@ -1844,8 +1964,13 @@ static s32 Nas_StartDma(OSIoMesg* ioMsg, s32 priority, s32 direction, uintptr_t 
 
     /* device_addr is an ARAM offset (relative to audiorom start).
      * GetNeosRomTop() gives the base ARAM address for audiorom data. */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     uintptr_t aram_offset = device_addr + (uintptr_t)GetNeosRomTop();
     ARStartDMA(1 /* ARAM→MRAM */, (uintptr_t)dram_addr, aram_offset, size);
+#else
+    u32 aram_offset = device_addr + GetNeosRomTop();
+    ARStartDMA(1 /* ARAM→MRAM */, (u32)dram_addr, aram_offset, size);
+#endif
 
     /* Send completion message so callers that do Z_osRecvMesg(BLOCK) unblock */
     if (mq != NULL) {
@@ -1901,16 +2026,25 @@ static u8* __Load_Bank_BG(s32 table_type, s32 id, s32 n_chunks, s32 ret_data, OS
     ArcHeader* header;
     u8* ramAddr;
     s32 medium;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     uintptr_t devAddr;
+#else
+    u32 devAddr;
+#endif
 #else
     u32 devAddr;
 #endif
     s32 loadStatus;
     s8 cachePolicy;
     s32 asyncLoadStatus;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     s32 link_id;
+#else
+    s32 link_id = __Link_BankNum(table_type, id);
+#endif
     voiceinfo* vinfo;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 
 #ifdef TARGET_PC
     if (table_type < 0 || table_type > WAVE_TABLE) {
@@ -1918,6 +2052,8 @@ static u8* __Load_Bank_BG(s32 table_type, s32 id, s32 n_chunks, s32 ret_data, OS
     }
 #endif
     link_id = __Link_BankNum(table_type, id);
+#else
+#endif
 
     switch (table_type) {
         case SEQUENCE_TABLE:
@@ -1950,8 +2086,12 @@ static u8* __Load_Bank_BG(s32 table_type, s32 id, s32 n_chunks, s32 ret_data, OS
         size = ALIGN_NEXT(size, 32);
         medium = header->entries[id].medium;
         cachePolicy = header->entries[id].cacheType;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
         devAddr = pc_get_entry_addr(header, link_id);
+#else
+        devAddr = header->entries[link_id].addr;
+#endif
 #else
         devAddr = header->entries[link_id].addr;
 #endif
@@ -1997,18 +2137,32 @@ static u8* __Load_Bank_BG(s32 table_type, s32 id, s32 n_chunks, s32 ret_data, OS
             if (table_type == BANK_TABLE) {
                 size -= 0x10;
                 vinfo = &AG.voice_info[link_id];
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
                 vinfo->num_instruments = BSWAP16(((u16*)devAddr)[0]);
                 vinfo->num_drums = BSWAP16(((u16*)devAddr)[1]);
                 vinfo->num_sfx = BSWAP16(((u16*)devAddr)[2]);
+#else
+                vinfo->num_instruments = ((u16*)devAddr)[0];
+                vinfo->num_drums = ((u16*)devAddr)[1];
+                vinfo->num_sfx = ((u16*)devAddr)[2];
+#endif
                 devAddr += 0x10;
             }
         }
 
         if (medium == MEDIUM_DISK) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             Nas_BgCopyDisk(header->medium, (u8*)(uintptr_t)devAddr, ramAddr, size, medium, n_chunks, ret_queue,
+#else
+            Nas_BgCopyDisk(header->medium, (u8*)devAddr, ramAddr, size, medium, n_chunks, ret_queue,
+#endif
                            MK_BGLOAD_MSG(ret_data, table_type, link_id, asyncLoadStatus));
         } else {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             Nas_BgCopyReq((u8*)(uintptr_t)devAddr, ramAddr, size, medium, n_chunks, ret_queue,
+#else
+            Nas_BgCopyReq((u8*)devAddr, ramAddr, size, medium, n_chunks, ret_queue,
+#endif
                           MK_BGLOAD_MSG(ret_data, table_type, link_id, asyncLoadStatus));
         }
         loadStatus = LOAD_STATUS_IN_PROGRESS;
@@ -2044,7 +2198,11 @@ void Nas_BgDmaFrameWork(s32 reset_status) {
 // @unused Nas_SetDiskHandler__FPFv_l -> void Nas_SetRomHandler(void (*disk_handler)(s32));
 // @unused Nas_SetRomHandler__FPFv_l -> void Nas_SetSyncHandler__FPFv_PUc(void (*rom_handler)(u8*));
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
+static void* Nas_GetSyncDummy(u8* param0, s32 param1) {
+#else
 static s32 Nas_GetSyncDummy(u8* param0, s32 param1) {
+#endif
     return 0;
 }
 
@@ -2353,8 +2511,12 @@ s32 SeqLoad(s32 seq_id, u8* ram_addr, s8* is_done) {
     cache->status = LPS_CACHE_STATE_START;
     cache->bytes_remaining = size;
     cache->ram_addr = cache->current_ram_addr;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     cache->current_device_addr = pc_get_entry_addr(header, link_id);
+#else
+    cache->current_device_addr = header->entries[link_id].addr;
+#endif
 #else
     cache->current_device_addr = header->entries[link_id].addr;
 #endif
@@ -2591,8 +2753,12 @@ static void __Nas_BgDiskCopy(u8* src, u8* dst, u32 size, s32 param) {
     // nothing
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 static void __WaveTouch(wtstr* wavetouch_str, uintptr_t ram_addr, WaveMedia* wave_media) {
+#else
+static void __WaveTouch(wtstr* wavetouch_str, u32 ram_addr, WaveMedia* wave_media) {
+#endif
 #else
 static void __WaveTouch(wtstr* wavetouch_str, u32 ram_addr, WaveMedia* wave_media) {
 #endif
@@ -3057,8 +3223,12 @@ void EmemReload(void) {
 
             if (wavemedia.wave0_bank_id != 0xFF) {
                 wavemedia.wave0_bank_id = __Link_BankNum(WAVE_TABLE, wavemedia.wave0_bank_id);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
                 wavemedia.wave0_media = header->entries[wavemedia.wave0_bank_id].medium;
+#else
+                wavemedia.wave0_media = header->entries[wavemedia.wave0_bank_id].medium;
+#endif
 #else
                 wavemedia.wave0_media = header->entries[wavemedia.wave0_bank_id].medium;
 #endif
@@ -3066,8 +3236,12 @@ void EmemReload(void) {
 
             if (wavemedia.wave1_bank_id != 0xFF) {
                 wavemedia.wave1_bank_id = __Link_BankNum(WAVE_TABLE, wavemedia.wave1_bank_id);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
                 wavemedia.wave1_media = header->entries[wavemedia.wave1_bank_id].medium;
+#else
+                wavemedia.wave1_media = header->entries[wavemedia.wave1_bank_id].medium;
+#endif
 #else
                 wavemedia.wave1_media = header->entries[wavemedia.wave1_bank_id].medium;
 #endif

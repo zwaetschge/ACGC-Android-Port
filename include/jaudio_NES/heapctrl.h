@@ -33,8 +33,12 @@ void Jac_SelfInitHeap(jaheap_*, u32, u32, u32);
 BOOL Jac_SelfAllocHeap(jaheap_*, jaheap_*, u32, u32);
 BOOL Jac_SetGroupHeap(jaheap_*, jaheap_*);
 void Jac_CutdownHeap(jaheap_*);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 void Jac_InitMotherHeap(jaheap_*, uintptr_t, u32, u8);
+#else
+void Jac_InitMotherHeap(jaheap_*, u32, u32, u8);
+#endif
 #else
 void Jac_InitMotherHeap(jaheap_*, u32, u32, u8);
 #endif

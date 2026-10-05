@@ -456,6 +456,7 @@ extern u32 JW_GetAramAddress(int res_no) {
         address = JC_JKRAramArchive_getAramAddress_byName(forest_arc_aram2_p, (u32)'DATA', aram_resName[res_no]);
     }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     {
         static int aram_log = 0;
@@ -467,6 +468,8 @@ extern u32 JW_GetAramAddress(int res_no) {
     }
 #endif
 
+#else
+#endif
     return address;
 }
 
@@ -501,9 +504,13 @@ extern void JW_Init() {
     void* arena_hi = OSGetArenaHi();
     void* arena_lo = OSGetArenaLo();
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     /* Overhead is larger on 64-bit due to wider pointers in JKR heap structs */
     SystemHeapSize = (uintptr_t)arena_hi - (uintptr_t)arena_lo - 0x200;
+#else
+    SystemHeapSize = (u32)arena_hi - (u32)arena_lo - 0xD0;
+#endif
 #else
     SystemHeapSize = (u32)arena_hi - (u32)arena_lo - 0xD0;
 #endif

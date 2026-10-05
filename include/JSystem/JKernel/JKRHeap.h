@@ -134,8 +134,12 @@ class JKRHeap : public JKRDisposer {
     u32 getMaxAllocatableSize(int alignment);
     JKRHeap* find(void*) const;        // 0x80084640
     JKRHeap* findAllHeap(void*) const; // 0x8008492c
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     void dispose_subroutine(uintptr_t begin, uintptr_t end);
+#else
+    void dispose_subroutine(u32 begin, u32 end);
+#endif
 #else
     void dispose_subroutine(u32 begin, u32 end);
 #endif
@@ -318,7 +322,11 @@ void JKRDefaultMemoryErrorRoutine(void*, u32, int);
 void* operator new(size_t);
 void* operator new(size_t, s32);
 void* operator new(size_t, JKRHeap*, int);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 inline void* operator new(size_t sz, void* buf) {
+#else
+inline void* operator new(size_t, void* buf) {
+#endif
     return buf;
 } // i believe this is actually part of MSL_C?
 

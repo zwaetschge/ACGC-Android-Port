@@ -22,7 +22,11 @@ typedef struct CARDStat
 
 s32 CARDGetStatus(s32 chan, s32 fileNo, CARDStat *stat);
 s32 CARDSetStatusAsync(s32 chan, s32 fileNo, CARDStat *stat, CARDCallback callback);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifndef TARGET_PC
+long CARDSetStatus(long chan, long fileNo, struct CARDStat * stat);
+#endif
+#else
 long CARDSetStatus(long chan, long fileNo, struct CARDStat * stat);
 #endif
 

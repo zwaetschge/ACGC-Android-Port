@@ -40,15 +40,10 @@ enum {
 #define aIGK_RANDOM_ANGLE2() ((s16)((fqrand() - 0.5f) * (f32)DEG2SHORT_ANGLE2(120.0f)))
 
 #define aIGK_TARGET_ANGLE(insect) ((insect)->s32_work0)
-#define aIGK_CHANGE_WAIT_TIMER(insect) ((insect)->s32_work1)
-#define aIGK_MOVE_TIMER(insect) ((insect)->s32_work2)
-#ifdef TARGET_PC
-#define aIGK_GET_ITEM_P(insect) (mFI_GetUnitFG(insect->tools_actor.actor_class.home.position))
-#define aIGK_SET_ITEM_P(insect, item_p)
-#else
+#define aIGK_CHANGE_WAIT_TIMER(insect) ((insect)->f32_work0)
+#define aIGK_MOVE_TIMER(insect) ((insect)->f32_work1)
 #define aIGK_GET_ITEM_P(insect) ((insect)->s32_work3)
-#define aIGK_SET_ITEM_P(insect, item_p) ((insect)->s32_work3 = (int)item_p)
-#endif
+#define aIGK_SET_ITEM_P(insect, item_p) ((insect)->s32_work3 = (intptr_t)item_p)
 
 static void aIGK_actor_move(ACTOR* actorx, GAME* game);
 static void aIGK_setupAction(aINS_INSECT_ACTOR* insect, int action, GAME* game);
@@ -240,7 +235,7 @@ static void aIGK_avoid(ACTOR* actorx, GAME* game) {
 
     actorx->gravity = grav;
     sAdo_OngenPos((uintptr_t)actorx, NA_SE_26, &actorx->world.position);
-    aIGK_anime_proc(insect);
+    aIGK_anime_proc(insect, game);
 
     if (insect->bg_type == 0) {
         int h_ut_x;
@@ -283,7 +278,7 @@ static void aIGK_move_on_flower(ACTOR* actorx, GAME* game) {
     } else {
         aIGK_MOVE_TIMER(insect) -= (f32)game->graph->dt_num_60fps_frames;
 
-        if (aIGK_MOVE_TIMER(insect) <= 0) {
+        if (aIGK_MOVE_TIMER(insect) <= 0.0f) {
             sAdo_OngenPos((uintptr_t)actorx, NA_SE_GOKI_MOVE, &actorx->world.position);
             insect->timer = (int)(2 * (90.0f + RANDOM_F(90.0f)));
             aIGK_setupAction(insect, aIGK_ACTION_WAIT_ON_FLOWER, game);

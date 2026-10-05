@@ -338,7 +338,7 @@ static void aIKR_dug(ACTOR* actorx, GAME* game) {
         aIKR_DIRT_TIMER(insect) = 6.0f;
     }
 
-    chase_angle(&actorx->shape_info.rotation.x, DEG2SHORT_ANGLE2(157.5f), 0x300);
+    chase_angle(&actorx->shape_info.rotation.x, DEG2SHORT_ANGLE2(157.5f), aINS_dt_angle_step(game, 0x300));
     sAdo_OngenPos((uintptr_t)actorx, NA_SE_MOLE_CRICKET_OUT, &actorx->world.position);
 }
 

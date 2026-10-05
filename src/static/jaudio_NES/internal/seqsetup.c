@@ -398,7 +398,11 @@ s32 Jaq_SetSeqData_Limit(seqp_* track, u8* param_2, u32 param_3, u32 param_4, u8
 	}
 	track->trackId = root;
 	track->flags   = 3;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 	Init_Track(track, (uintptr_t)puVar2, (seqp_*)NULL);
+#else
+	Init_Track(track, (u32)puVar2, NULL);
+#endif
 	Jam_InitExtBuffer(&ROOT_OUTER[root]);
 	Jam_AssignExtBuffer(track, &ROOT_OUTER[root]);
 	Init_1shot(&track->parentController, param_5);
@@ -518,7 +522,11 @@ s32 Jaq_OpenTrack(seqp_* track, u32 flags, u32 source)
 	newChildTrack->dataSourceMode = track->dataSourceMode;
 	newChildTrack->flags          = trackFlags;
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 	Init_Track(newChildTrack, (uintptr_t)source, track);
+#else
+	Init_Track(newChildTrack, source, track);
+#endif
 
 	// Dev rolls "worst bit extraction method", asked to leave Nintendo EAD.
 	newChildTrack->isMuted = newChildTrack->parent->isMuted | ((newChildTrack->parent->childMuteMask & (1 << childIndex)) >> childIndex);

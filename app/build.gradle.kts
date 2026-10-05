@@ -62,12 +62,13 @@ android {
         applicationId = "com.acpc.port"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
         ndk {
-            // The decomp's emu64 display list interpreter packs host pointers
-            // into 32-bit GBI words -> the port is 32-bit only (like upstream).
-            abiFilters += listOf("armeabi-v7a")
+            // armeabi-v7a: the original 32-bit port. arm64-v8a: for devices without
+            // 32-bit support; built from the same sources with the 64-bit code paths
+            // (__SIZEOF_POINTER__ == 8, based on birabittoh's 64-bit PC port work).
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
         }
         externalNativeBuild {
             cmake {

@@ -41,10 +41,7 @@ JKRDvdArchive::~JKRDvdArchive() {
         }
 
 #ifdef TARGET_PC
-        if (mFileEntryDataPtrs) {
-            free(mFileEntryDataPtrs);
-            mFileEntryDataPtrs = nullptr;
-        }
+        JKR_FREE_FILE_ENTRY_DATA();
 #endif
 
         if (mDvdFile) {
@@ -67,7 +64,7 @@ bool JKRDvdArchive::open(s32 entryNum) {
     mFileEntries = nullptr;
     mStrTable = nullptr;
 #ifdef TARGET_PC
-    mFileEntryDataPtrs = nullptr;
+    JKR_CLEAR_FILE_ENTRY_DATA();
 #endif
 
     mDvdFile = new (JKRGetSystemHeap(), 0) JKRDvdFile(entryNum);
@@ -94,7 +91,7 @@ bool JKRDvdArchive::open(s32 entryNum) {
             mFileEntries = (SDIFileEntry*)((u8*)mArcInfoBlock + mArcInfoBlock->file_entry_offset);
             mStrTable = (const char*)((u8*)mArcInfoBlock + mArcInfoBlock->string_table_offset);
 #ifdef TARGET_PC
-            mFileEntryDataPtrs = (void**)calloc(mArcInfoBlock->num_file_entries > 0 ? mArcInfoBlock->num_file_entries : 1, sizeof(void*));
+            JKR_ALLOC_FILE_ENTRY_DATA();
 #endif
             _60 = mem->mDataOffset + mem->mSize; // End of data offset?
         }

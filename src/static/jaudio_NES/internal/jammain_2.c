@@ -2993,7 +2993,11 @@ try_interrupt:
 				for (iVar11 = 0; iVar11 < (bVar10 >> 3 & 3); iVar11++) {
 					uVar2 = uVar2 << 8 | __ByteRead(track);
 				}
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 				if ((bVar10 >> 3 & 3) == 1 && uVar2 >= 0x80) {
+#else
+				if ((u32)(bVar10 >> 3 & 3) == 1 && uVar2 >= 0x80) {
+#endif
 					uVar2 = __ExchangeRegisterValue(track, uVar2 - 0x80);
 				}
 			} else {

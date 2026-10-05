@@ -58,11 +58,19 @@ extern void Jac_SetAudioARAMSize(u32 size) {
 }
 
 extern void* ARAllocFull(u32* outSize) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     u32 freeSize = (u32)((uintptr_t)aram_hp.length - ((uintptr_t)aram_hp.current - (uintptr_t)aram_hp.base));
+#else
+    u32 freeSize = aram_hp.length - ((int)aram_hp.current - (int)aram_hp.base);
+#endif
     void* alloc = Nas_HeapAlloc(&aram_hp, freeSize - 32);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     if (outSize) {
         *outSize = freeSize - 32;
     }
+#else
+    *outSize = freeSize - 32;
+#endif
     return alloc;
 }
 

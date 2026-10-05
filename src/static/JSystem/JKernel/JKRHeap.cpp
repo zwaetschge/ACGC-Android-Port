@@ -70,8 +70,12 @@ bool JKRHeap::initArena(char** outUserRamStart, u32* outUserRamSize, int numHeap
     OSSetArenaLo(arenaHi);
     OSSetArenaHi(arenaHi);
     *outUserRamStart = (char*)arenaLo;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     *outUserRamSize = (u32)((uintptr_t)arenaHi - (uintptr_t)arenaLo);
+#else
+    *outUserRamSize = (u32)arenaHi - (u32)arenaLo;
+#endif
 #else
     *outUserRamSize = (u32)arenaHi - (u32)arenaLo;
 #endif
@@ -211,8 +215,12 @@ JKRHeap* JKRHeap::findAllHeap(void* memory) const {
 }
 
 // generates __as__25JSUTreeIterator<7JKRHeap>FP17JSUTree<7JKRHeap> and __ct__25JSUTreeIterator<7JKRHeap>Fv, remove this
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 void JKRHeap::dispose_subroutine(uintptr_t begin, uintptr_t end) {
+#else
+void JKRHeap::dispose_subroutine(u32 begin, u32 end) {
+#endif
 #else
 void JKRHeap::dispose_subroutine(u32 begin, u32 end) {
 #endif
@@ -239,9 +247,14 @@ void JKRHeap::dispose_subroutine(u32 begin, u32 end) {
 }
 
 bool JKRHeap::dispose(void* memory, u32 size) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     uintptr_t begin = (uintptr_t)memory;
     uintptr_t end = (uintptr_t)memory + size;
+#else
+    u32 begin = (u32)memory;
+    u32 end = (u32)memory + size;
+#endif
 #else
     u32 begin = (u32)memory;
     u32 end = (u32)memory + size;
@@ -251,8 +264,12 @@ bool JKRHeap::dispose(void* memory, u32 size) {
 }
 
 void JKRHeap::dispose(void* begin, void* end) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     dispose_subroutine((uintptr_t)begin, (uintptr_t)end);
+#else
+    dispose_subroutine((u32)begin, (u32)end);
+#endif
 #else
     dispose_subroutine((u32)begin, (u32)end);
 #endif

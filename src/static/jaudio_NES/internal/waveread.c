@@ -17,6 +17,7 @@ CtrlGroup_* CGRP_ARRAY[16];
  * Size:	000038
  */
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 static void PTconvert(void** pointer, uintptr_t base_address)
 {
@@ -35,6 +36,19 @@ static void PTconvert(void** pointer, uintptr_t base_address)
 	}
 	*pointer = (void*)(base_address + offset);
 }
+#else
+static void PTconvert(void** pointer, u32 base_address)
+{
+	if (*pointer == NULL) {
+		*pointer = NULL;
+		return;
+	}
+	if (*pointer >= (void*)base_address || *pointer == NULL) {
+		return;
+	}
+	*pointer = *(char**)pointer + base_address;
+}
+#endif
 #else
 static void PTconvert(void** pointer, u32 base_address)
 {
@@ -67,6 +81,7 @@ CtrlGroup_* Wave_Test(u8* data)
 	WaveArchiveBank_* arcBank;
 	WaveArchive_* arc;
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 	/* ROM data has 32-bit pointer fields at fixed offsets regardless of
 	 * native pointer size. Read as u32 offsets and relocate manually. */
@@ -79,6 +94,12 @@ CtrlGroup_* Wave_Test(u8* data)
 		((Wsys_*)data)->waveArcBank = arcBank;
 		((Wsys_*)data)->ctrlGroup   = group;
 	}
+#else
+	PTconvert((void**)&((Wsys_*)data)->waveArcBank, base_addr);
+	PTconvert((void**)&((Wsys_*)data)->ctrlGroup, base_addr);
+	arcBank       = *(WaveArchiveBank_**)(data + 0x10);
+	group         = *(CtrlGroup_**)(data + 0x14);
+#endif
 #else
 	PTconvert((void**)&((Wsys_*)data)->waveArcBank, base_addr);
 	PTconvert((void**)&((Wsys_*)data)->ctrlGroup, base_addr);

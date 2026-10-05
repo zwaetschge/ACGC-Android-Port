@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-#if defined(TARGET_PC) && UINTPTR_MAX > 0xFFFFFFFFu
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 
 /* Recover a full 64-bit pointer from a truncated 32-bit GBI w1 value.
  * Strategy: all game pointers come from one of two regions:

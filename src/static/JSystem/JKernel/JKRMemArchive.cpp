@@ -27,7 +27,7 @@ JKRMemArchive::JKRMemArchive(s32 entryNum, EMountDirection mountDirection) : JKR
     }
 }
 
-JKRMemArchive::JKRMemArchive(void* mem, u32 size, JKRMemBreakFlag breakFlag) : JKRArchive((s32)mem, MOUNT_MEM) {
+JKRMemArchive::JKRMemArchive(void* mem, u32 size, JKRMemBreakFlag breakFlag) : JKRArchive((s32)(intptr_t)mem, MOUNT_MEM) {
     mIsMounted = false;
     if (!open(mem, size, breakFlag)) {
         return;
@@ -45,10 +45,7 @@ JKRMemArchive::~JKRMemArchive() {
             JKRFreeToHeap(mHeap, mArcHeader);
 
 #ifdef TARGET_PC
-        if (mFileEntryDataPtrs) {
-            free(mFileEntryDataPtrs);
-            mFileEntryDataPtrs = nullptr;
-        }
+        JKR_FREE_FILE_ENTRY_DATA();
 #endif
 
         sVolumeList.remove(&mFileLoaderLink);
@@ -75,7 +72,7 @@ bool JKRMemArchive::open(s32 entryNum, JKRArchive::EMountDirection mountDirectio
     mIsOpen = false;
     mMountDirection = mountDirection;
 #ifdef TARGET_PC
-    mFileEntryDataPtrs = nullptr;
+    JKR_CLEAR_FILE_ENTRY_DATA();
 #endif
 
     if (mMountDirection == JKRArchive::MOUNT_DIRECTION_HEAD) {
@@ -100,7 +97,7 @@ bool JKRMemArchive::open(s32 entryNum, JKRArchive::EMountDirection mountDirectio
 
 #ifdef TARGET_PC
         mArchiveData = (u8*)((uintptr_t)mArcHeader + mArcHeader->header_length + mArcHeader->file_data_offset);
-        mFileEntryDataPtrs = (void**)calloc(mArcInfoBlock->num_file_entries > 0 ? mArcInfoBlock->num_file_entries : 1, sizeof(void*));
+        JKR_ALLOC_FILE_ENTRY_DATA();
 #else
         mArchiveData = (u8*)((u32)mArcHeader + mArcHeader->header_length + mArcHeader->file_data_offset);
 #endif
@@ -124,7 +121,7 @@ bool JKRMemArchive::open(void* buffer, u32 bufferSize, JKRMemBreakFlag flag) {
     mStrTable = (char*)((u8*)&mArcInfoBlock->num_nodes + mArcInfoBlock->string_table_offset);
 #ifdef TARGET_PC
     mArchiveData = (u8*)(((uintptr_t)mArcHeader + mArcHeader->header_length) + mArcHeader->file_data_offset);
-    mFileEntryDataPtrs = (void**)calloc(mArcInfoBlock->num_file_entries > 0 ? mArcInfoBlock->num_file_entries : 1, sizeof(void*));
+    JKR_ALLOC_FILE_ENTRY_DATA();
 #else
     mArchiveData = (u8*)(((u32)mArcHeader + mArcHeader->header_length) + mArcHeader->file_data_offset);
 #endif

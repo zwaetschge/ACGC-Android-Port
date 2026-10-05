@@ -202,7 +202,11 @@ extern void mSM_open_submenu_new(Submenu* submenu, int type, int arg0, int arg1,
     mSM_open_submenu_new2(submenu, type, arg0, arg1, arg2, 0);
 }
 
+#ifdef TARGET_PC
+extern void mSM_open_submenu_new2(Submenu* submenu, int type, int arg0, int arg1, void* arg2, intptr_t arg3) {
+#else
 extern void mSM_open_submenu_new2(Submenu* submenu, int type, int arg0, int arg1, void* arg2, int arg3) {
+#endif
     submenu->menu_type = type;
     submenu->param0 = arg0;
     submenu->param1 = arg1;

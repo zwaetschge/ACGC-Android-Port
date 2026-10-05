@@ -4,7 +4,11 @@
 #include <time.h>
 
 /* --- Memory arena --- */
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 u8* arena_memory = NULL;
+#else
+static u8* arena_memory = NULL;
+#endif
 static u8* arena_lo = NULL;
 static u8* arena_hi = NULL;
 
@@ -251,18 +255,40 @@ void LCDisable(void) {}
 /* --- Init --- */
 void OSInit(void) {
     if (!arena_memory) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
         /* alloc arena — on 64-bit, any mmap/VirtualAlloc returns high addresses
          * naturally (well above 0x0FFFFFFF), so no fixed-address loop needed.
          * On 32-bit, alloc at >=0x10000000 to avoid collision with N64 segment addresses. */
-#if UINTPTR_MAX > 0xFFFFFFFFu
+#if __SIZEOF_POINTER__ == 8
         /* 64-bit: let OS choose address (will be above N64 segment range) */
 #ifdef _WIN32
         arena_memory = (u8*)VirtualAlloc(NULL,
             PC_MAIN_MEMORY_SIZE, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 #else
-        arena_memory = (u8*)mmap(NULL, PC_MAIN_MEMORY_SIZE,
-            PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-        if (arena_memory == MAP_FAILED) arena_memory = NULL;
+        /* Prefer an arena below 4 GiB (but above the N64 segment range): the decomp
+         * still stores some arena pointers in 32-bit fields, which then stay valid.
+         * The address is only a hint; any other address works through the
+         * pointer recovery helpers (pc_gbi_ptr.h). */
+        {
+            uintptr_t hint;
+            arena_memory = NULL;
+            for (hint = 0x40000000; hint < 0xF0000000u && !arena_memory; hint += 0x10000000) {
+                void* p = mmap((void*)hint, PC_MAIN_MEMORY_SIZE, PROT_READ | PROT_WRITE,
+                               MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+                if (p == MAP_FAILED) continue;
+                if ((uintptr_t)p + PC_MAIN_MEMORY_SIZE <= 0xFFFFFFFFu) {
+                    arena_memory = (u8*)p;
+                } else {
+                    munmap(p, PC_MAIN_MEMORY_SIZE);
+                }
+            }
+            if (!arena_memory) {
+                arena_memory = (u8*)mmap(NULL, PC_MAIN_MEMORY_SIZE,
+                    PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+                if (arena_memory == MAP_FAILED) arena_memory = NULL;
+            }
+            fprintf(stderr, "[PC] arena at %p\n", (void*)arena_memory);
+        }
 #endif
 #else
         /* 32-bit: try fixed addresses above N64 segment range */
@@ -291,6 +317,9 @@ void OSInit(void) {
                             "falling back to malloc (seg2k0 may misfire)\n");
             arena_memory = (u8*)malloc(PC_MAIN_MEMORY_SIZE);
         }
+#else
+        arena_memory = (u8*)malloc(PC_MAIN_MEMORY_SIZE);
+#endif
         if (!arena_memory) {
             fprintf(stderr, "Failed to allocate main memory arena\n");
             exit(1);

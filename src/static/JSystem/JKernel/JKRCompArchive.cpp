@@ -46,10 +46,7 @@ JKRCompArchive::~JKRCompArchive() {
     }
 
 #ifdef TARGET_PC
-    if (mFileEntryDataPtrs) {
-        free(mFileEntryDataPtrs);
-        mFileEntryDataPtrs = nullptr;
-    }
+    JKR_FREE_FILE_ENTRY_DATA();
 #endif
 
     if (mAramPart) {
@@ -75,7 +72,7 @@ bool JKRCompArchive::open(s32 entryNum) {
     mFileEntries = nullptr;
     mStrTable = nullptr;
 #ifdef TARGET_PC
-    mFileEntryDataPtrs = nullptr;
+    JKR_CLEAR_FILE_ENTRY_DATA();
 #endif
 
     mDvdFile = new (JKRGetSystemHeap(), 0) JKRDvdFile(entryNum);
@@ -131,7 +128,7 @@ bool JKRCompArchive::open(s32 entryNum) {
                     mDirectories = (SDIDirEntry*)((uintptr_t)mArcInfoBlock + mArcInfoBlock->node_offset);
                     mFileEntries = (SDIFileEntry*)((uintptr_t)mArcInfoBlock + mArcInfoBlock->file_entry_offset);
                     mStrTable = (const char*)((uintptr_t)mArcInfoBlock + mArcInfoBlock->string_table_offset);
-                    mFileEntryDataPtrs = (void**)calloc(mArcInfoBlock->num_file_entries > 0 ? mArcInfoBlock->num_file_entries : 1, sizeof(void*));
+                    JKR_ALLOC_FILE_ENTRY_DATA();
 #else
                     mDirectories = (SDIDirEntry*)((u32)mArcInfoBlock + mArcInfoBlock->node_offset);
                     mFileEntries = (SDIFileEntry*)((u32)mArcInfoBlock + mArcInfoBlock->file_entry_offset);
@@ -193,7 +190,7 @@ bool JKRCompArchive::open(s32 entryNum) {
                 mDirectories = (SDIDirEntry*)((uintptr_t)mArcInfoBlock + mArcInfoBlock->node_offset);
                 mFileEntries = (SDIFileEntry*)((uintptr_t)mArcInfoBlock + mArcInfoBlock->file_entry_offset);
                 mStrTable = (const char*)((uintptr_t)mArcInfoBlock + mArcInfoBlock->string_table_offset);
-                mFileEntryDataPtrs = (void**)calloc(mArcInfoBlock->num_file_entries > 0 ? mArcInfoBlock->num_file_entries : 1, sizeof(void*));
+                JKR_ALLOC_FILE_ENTRY_DATA();
 #else
                 mDirectories = (SDIDirEntry*)((u32)mArcInfoBlock + mArcInfoBlock->node_offset);
                 mFileEntries = (SDIFileEntry*)((u32)mArcInfoBlock + mArcInfoBlock->file_entry_offset);

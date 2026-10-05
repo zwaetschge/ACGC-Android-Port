@@ -82,7 +82,7 @@ JKRArchive* JKRArchive::mount(const char* path, EMountMode mode, JKRHeap* heap, 
 }
 
 JKRArchive* JKRArchive::mount(void* p1, JKRHeap* heap, EMountDirection mountDirection) {
-    JKRArchive* archive = check_mount_already((s32)p1, heap);
+    JKRArchive* archive = check_mount_already((s32)(intptr_t)p1, heap);
     if (archive != nullptr) {
         return archive;
     }
@@ -241,9 +241,15 @@ void JKRArchive::removeResourceAll() {
     if (mArcInfoBlock && mMountMode != MOUNT_MEM) {
         SDIFileEntry* entry = mFileEntries;
         for (int i = 0; i < mArcInfoBlock->num_file_entries; i++) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
             if (getFileEntryData(entry)) {
                 setFileEntryData(entry, nullptr);
                 JKRFreeToHeap(mHeap, getFileEntryData(entry));
+#else
+            if (entry->mData) {
+                entry->mData = nullptr;
+                JKRFreeToHeap(mHeap, entry->mData);
+#endif
             }
         }
     }
@@ -255,7 +261,11 @@ bool JKRArchive::removeResource(void* resource) {
     if (entry == nullptr) {
         return false;
     }
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     setFileEntryData(entry, nullptr);
+#else
+    entry->mData = nullptr;
+#endif
     JKRHeap::free(resource, mHeap);
     return true;
 }
@@ -266,7 +276,11 @@ bool JKRArchive::detachResource(void* resource) {
     if (entry == nullptr) {
         return false;
     }
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     setFileEntryData(entry, nullptr);
+#else
+    entry->mData = nullptr;
+#endif
     return true;
 }
 

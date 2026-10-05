@@ -46,10 +46,7 @@ JKRAramArchive::~JKRAramArchive() {
         }
 
 #ifdef TARGET_PC
-        if (mFileEntryDataPtrs) {
-            free(mFileEntryDataPtrs);
-            mFileEntryDataPtrs = nullptr;
-        }
+        JKR_FREE_FILE_ENTRY_DATA();
 #endif
 
         if (mDvdFile) {
@@ -120,10 +117,7 @@ void JKRAramArchive::unmountFixed() {
     }
 
 #ifdef TARGET_PC
-    if (mFileEntryDataPtrs) {
-        free(mFileEntryDataPtrs);
-        mFileEntryDataPtrs = nullptr;
-    }
+    JKR_FREE_FILE_ENTRY_DATA();
 #endif
 
     if (mDvdFile)
@@ -147,7 +141,7 @@ bool JKRAramArchive::open(s32 entryNum) {
     mStrTable = nullptr;
     mBlock = nullptr;
 #ifdef TARGET_PC
-    mFileEntryDataPtrs = nullptr;
+    JKR_CLEAR_FILE_ENTRY_DATA();
 #endif
 
     mDvdFile = new (JKRGetSystemHeap(), mMountDirection == MOUNT_DIRECTION_HEAD ? 4 : -4) JKRDvdFile(entryNum);
@@ -224,7 +218,7 @@ bool JKRAramArchive::open(s32 entryNum) {
                 mFileEntries[i].mSize = bswap32(mFileEntries[i].mSize);
                 /* mData is a host pointer, don't swap */
             }
-            mFileEntryDataPtrs = (void**)calloc(mArcInfoBlock->num_file_entries > 0 ? mArcInfoBlock->num_file_entries : 1, sizeof(void*));
+            JKR_ALLOC_FILE_ENTRY_DATA();
 #endif
 
             u32 aramSize = ALIGN_NEXT(mem->file_data_length, 32);
