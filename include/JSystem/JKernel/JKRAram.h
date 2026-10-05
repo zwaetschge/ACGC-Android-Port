@@ -27,7 +27,11 @@ class JKRAMCommand;
 
 class JKRAramBlock {
   public:
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     JKRAramBlock(uintptr_t address, u32 size, u32 freeSize, u8 groupID, bool tempMemory);
+#else
+    JKRAramBlock(u32 address, u32 size, u32 freeSize, u8 groupID, bool tempMemory);
+#endif
 
     virtual ~JKRAramBlock();
 
@@ -63,7 +67,11 @@ class JKRAramBlock {
     }
 
     JSULink<JKRAramBlock> mLink;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     uintptr_t mAddress;
+#else
+    u32 mAddress;
+#endif
     u32 mSize;
     u32 mFreeSize;
     u8 mGroupID;
@@ -76,7 +84,11 @@ class JKRAramHeap : public JKRDisposer {
   public:
     enum EAllocMode { Head = 0, Tail = 1 };
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     JKRAramHeap(uintptr_t baseAddress, u32 size);
+#else
+    JKRAramHeap(u32 baseAddress, u32 size);
+#endif
 
     virtual ~JKRAramHeap();
 
@@ -107,8 +119,13 @@ class JKRAramHeap : public JKRDisposer {
 
     OSMutex mMutex;
     JKRHeap* mHeap;
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     uintptr_t mHeadAddress;
     uintptr_t mTailAddress;
+#else
+    u32 mHeadAddress;
+    u32 mTailAddress;
+#endif
     u32 mSize;
     u8 mGroupID;
 
@@ -149,7 +166,11 @@ class JKRAram : public JKRThread {
     static JKRAramBlock* mainRamToAram(u8*, u32, u32, JKRExpandSwitch, u32, JKRHeap*, int);
 #endif
     static JKRAramBlock* mainRamToAram(u8*, JKRAramBlock* block, u32, JKRExpandSwitch, u32, JKRHeap*, int);
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     static u8* aramToMainRam(uintptr_t, u8*, u32, JKRExpandSwitch, u32, JKRHeap*, int, u32*);
+#else
+    static u8* aramToMainRam(u32, u8*, u32, JKRExpandSwitch, u32, JKRHeap*, int, u32*);
+#endif
     static u8* aramToMainRam(JKRAramBlock*, u8*, u32, u32, JKRExpandSwitch, u32, JKRHeap*, int, u32*);
 
     void aramSync(JKRAMCommand*, int);
@@ -336,7 +357,11 @@ class JKRAramStreamCommand {
     JKRAramStreamCommand();
 
     ECommandType type;             // _00
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
     uintptr_t mAddress;            // _04
+#else
+    u32 mAddress;                  // _04
+#endif
     u32 mSize;                     // _08
     u32 _0C;                       // _0C
     JSUFileInputStream* mStream;   // _10
@@ -404,7 +429,11 @@ inline void JKRFreeToAram(JKRAramBlock* block) {
     JKRAram::getAramHeap()->free(block);
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 inline u8* JKRAramToMainRam(uintptr_t address, u8* buf, u32 bufSize, JKRExpandSwitch expandSwitch, u32 p5, JKRHeap* heap,
+#else
+inline u8* JKRAramToMainRam(u32 address, u8* buf, u32 bufSize, JKRExpandSwitch expandSwitch, u32 p5, JKRHeap* heap,
+#endif
                             int id, u32* pSize) {
     return JKRAram::aramToMainRam(address, buf, bufSize, expandSwitch, p5, heap, id, pSize);
 }

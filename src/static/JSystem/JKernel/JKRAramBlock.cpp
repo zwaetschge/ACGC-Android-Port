@@ -1,7 +1,11 @@
 #include "JSystem/JKernel/JKRAram.h"
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
 JKRAramBlock::JKRAramBlock(uintptr_t address, u32 size, u32 freeSize, u8 groupID, bool tempMemory)
+#else
+JKRAramBlock::JKRAramBlock(u32 address, u32 size, u32 freeSize, u8 groupID, bool tempMemory)
+#endif
 #else
 JKRAramBlock::JKRAramBlock(u32 address, u32 size, u32 freeSize, u8 groupID, bool tempMemory)
 #endif
@@ -22,8 +26,12 @@ JKRAramBlock::~JKRAramBlock() {
 }
 
 JKRAramBlock* JKRAramBlock::allocHead(u32 size, u8 groupID, JKRAramHeap* heap) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     uintptr_t address = this->mAddress + this->mSize;
+#else
+    u32 address = this->mAddress + this->mSize;
+#endif
 #else
     u32 address = this->mAddress + this->mSize;
 #endif
@@ -36,8 +44,12 @@ JKRAramBlock* JKRAramBlock::allocHead(u32 size, u8 groupID, JKRAramHeap* heap) {
 }
 
 JKRAramBlock* JKRAramBlock::allocTail(u32 size, u8 groupID, JKRAramHeap* heap) {
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 #ifdef TARGET_PC
     uintptr_t address = this->mAddress + this->mSize + this->mFreeSize - size;
+#else
+    u32 address = this->mAddress + this->mSize + this->mFreeSize - size;
+#endif
 #else
     u32 address = this->mAddress + this->mSize + this->mFreeSize - size;
 #endif

@@ -22,12 +22,20 @@ extern void DSPWaitFinish(void) {
     /* No hardware DSP — already done synchronously */
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 extern void DsetupTable(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4) {
+#else
+extern void DsetupTable(u32 arg0, u32 arg1, u32 arg2, u32 arg3, u32 arg4) {
+#endif
     /* Channel table setup — no-op on PC, rspsim uses DSPchannel_ structs directly */
     (void)arg0; (void)arg1; (void)arg2; (void)arg3; (void)arg4;
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 extern void DsyncFrame(u32 subframes, uintptr_t dspbuf_start, uintptr_t dspbuf_end) {
+#else
+extern void DsyncFrame(u32 subframes, u32 dspbuf_start, u32 dspbuf_end) {
+#endif
     /* On GC this sends commands to DSP to process subframes.
      * On PC, rspsim is called directly from UpdateDSP path.
      * Store buffer pointers for rspsim if needed. */
@@ -38,12 +46,20 @@ extern void DwaitFrame(void) {
     /* No-op on PC */
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 extern void DiplSec(uintptr_t arg0) {
+#else
+extern void DiplSec(u32 arg0) {
+#endif
     /* IPL security — not needed on PC */
     (void)arg0;
 }
 
+#if defined(TARGET_PC) && __SIZEOF_POINTER__ == 8
 extern void DagbSec(uintptr_t arg0) {
+#else
+extern void DagbSec(u32 arg0) {
+#endif
     /* AGB security — not needed on PC */
     (void)arg0;
 }

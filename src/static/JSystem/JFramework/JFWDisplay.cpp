@@ -331,8 +331,8 @@ void waitForTick(u32 p1, u16 p2) {
             if (!OSReceiveMessage(JUTVideo::getManager()->getMessageQueue(), &msg, OS_MESSAGE_BLOCK)) {
                 msg = 0;
             }
-        } while (((int)msg - (int)nextCount) < 0);
-        nextCount = (int)msg + uVar1;
+        } while (((int)(intptr_t)msg - (int)nextCount) < 0); /* msg carries the retrace count */
+        nextCount = (int)(intptr_t)msg + uVar1;
     }
 }
 

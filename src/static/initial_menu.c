@@ -345,7 +345,7 @@ static OSMessage commandMsgBuf[2];
 static OSMessage statusMsgBuf[1];
 
 extern void proc(void* arg) {
-  u32 msg;
+  uintptr_t msg; /* receives an OSMessage */
   int proc_done;
   OSTimer timer;
 
