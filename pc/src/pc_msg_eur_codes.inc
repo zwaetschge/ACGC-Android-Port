@@ -68,10 +68,12 @@ static u32 pc_msg_eur_translate_cmd(const u8* p, u32 n, u8* out)
         out[0] = 0x7F; out[1] = mFont_CONT_CODE_SOUND_TRG_SYS;
         return 2;
     }
-    /* EUR: 0A 00 0D <0B> → SNDTRGSYS */
+    /* EUR: 0A 00 0D <0B> → SNDTRGSYS 05 (USA takes the sound number as an argument;
+     * without it the next text character was consumed, e.g. "nglaublich!") */
     if (n >= 3 && p[0] == 0x0A && p[1] == 0x00 && p[2] == 0x0D) {
         out[0] = 0x7F; out[1] = mFont_CONT_CODE_SOUND_TRG_SYS;
-        return 2;
+        out[2] = 0x05;
+        return 3;
     }
     /* EUR: 0C 00 00 <2B> → SETFORCEMSG */
     if (n >= 5 && p[0] == 0x0C && p[1] == 0x00 && p[2] == 0x00) {

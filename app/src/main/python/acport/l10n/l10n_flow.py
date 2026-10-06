@@ -691,7 +691,13 @@ def _extract_eur_select_strings(eur_1st_script_arc: Path, tmp: str) -> list[str]
                 size = raw[j + 1] if j + 1 < len(raw) else 2
                 j += max(size, 2)
             elif b == 0x00:
-                break
+                # AC charset maps 0x00 to '¡' (Spanish opening '!').  A NUL is
+                # only a terminator as trailing padding at the end of the
+                # slice; anywhere else it is real text.
+                if not any(x != 0 for x in raw[j:]):
+                    break
+                chars.append(CHAR_MAP[b])
+                j += 1
             elif b < len(CHAR_MAP):
                 chars.append(CHAR_MAP[b])
                 j += 1
@@ -790,7 +796,12 @@ def _eur_raw_to_usa_bytes(raw: bytes) -> bytes:
                 # codes 0x10, 0x11 and anything else → silently dropped
             i += max(size, 2)
         elif b == 0x00:
-            break
+            # AC charset maps 0x00 to '¡' (Spanish opening '!').  A NUL is
+            # only a terminator as trailing padding at the end of the slice.
+            if not any(x != 0 for x in raw[i:]):
+                break
+            out.append(b)
+            i += 1
         else:
             out.append(b)
             i += 1

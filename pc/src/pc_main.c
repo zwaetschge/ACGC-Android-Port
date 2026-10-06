@@ -135,6 +135,10 @@ void pc_platform_init(void) {
     SetProcessDPIAware();
     SDL_SetHint(SDL_HINT_WINDOWS_INTRESOURCE_ICON, "1");
 #endif
+#ifdef TARGET_ANDROID
+    /* The system back button/gesture opens the pause menu instead of closing the activity. */
+    SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
+#endif
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_AUDIO | SDL_INIT_TIMER) < 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         exit(1);
@@ -286,6 +290,13 @@ int pc_platform_poll_events(void) {
                 }
                 break;
             case SDL_KEYDOWN:
+#ifdef TARGET_ANDROID
+                /* Android back acts like Esc: toggles the pause menu / cancels inside it. */
+                if (event.key.keysym.sym == SDLK_AC_BACK) {
+                    event.key.keysym.sym = SDLK_ESCAPE;
+                    event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
+                }
+#endif
                 /* Keybinding capture eats all input first (works from both
                  * the pause menu and the title Options menu). */
                 if (pc_settings_menu_capture_active()) {

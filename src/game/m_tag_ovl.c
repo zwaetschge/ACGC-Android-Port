@@ -154,12 +154,33 @@ static mTG_tag_data_table_c mTG_table_data[] = {
     { 2, 4, mTG_gba_nw_col_pos, mTG_gba_nw_line_pos },                     /* mTG_TABLE_CARD_NW */
 };
 
+#ifdef TARGET_PC
+/* sized for translations (pc_l10n code_strings), length kept separately */
+static u8 str_omikuji[32] = "fortune";
+static int str_omikuji_len = 7;
+#else
 static u8 str_omikuji[7] = "fortune";
+#endif
+#ifdef TARGET_PC
+static u8 str_happy_room[32] = "the HRA";
+static int str_happy_room_len = 7;
+#else
 static u8 str_happy_room[7] = "the HRA";
+#endif
 static u8 postoffice_str[15] = "the post office";
 static u8 mother_str[4] = "home";
+#ifdef TARGET_PC
+static u8 str_otodokemono[32] = "Delivery for";
+static int str_otodokemono_len = 12;
+#else
 static u8 str_otodokemono[12] = "Delivery for";
+#endif
+#ifdef TARGET_PC
+static u8 str_otegami[32] = "Letter to";
+static int str_otegami_len = 9;
+#else
 static u8 str_otegami[9] = "Letter to";
+#endif
 static u8 str_title0[5] = "to\xD3  ";
 static u8 str_title1[5] = "from\xD3";
 static u8 str_title2[5] = "'s   ";
@@ -588,11 +609,176 @@ static mTG_tag_word_c mTG_tag_word_password_item = {
     &mTG_password_item_proc,
 };
 
+
+#ifdef TARGET_PC
+static u8 mTG_tag_str_suteruno[32] = "Throw it out?";
+static int mTG_tag_str_suteruno_len = 13;
+#else
 static u8 mTG_tag_str_suteruno[13] = "Throw it out?";
+#endif
 static u8 mTG_tag_str_hontoni[6] = "??????";
 static u8 mTG_tag_str_iidesuka[6] = "??????";
+#ifdef TARGET_PC
+static u8 mTG_tag_str_put_chk1[32] = "You'll lose";
+static int mTG_tag_str_put_chk1_len = 11;
+#else
 static u8 mTG_tag_str_put_chk1[11] = "You'll lose";
+#endif
+#ifdef TARGET_PC
+static u8 mTG_tag_str_put_chk2[32] = "that design.";
+static int mTG_tag_str_put_chk2_len = 12;
+#else
 static u8 mTG_tag_str_put_chk2[12] = "that design.";
+#endif
+
+
+#ifdef TARGET_PC
+#define mTG_STR_LEN(name) (name##_len)
+#include "pc_settings.h"
+#include <stdio.h>
+#include <string.h>
+
+/* Translated tag menu words and phrases (translations/<lang>/code_strings.bin,
+ * generated on the device from the user's European disc). */
+typedef struct {
+    const char* name;
+    u8* str;
+    int max;
+    int* len;
+} mTG_l10n_entry_c;
+
+#define mTG_L10N_WORD(w) { #w, (w).str, mTG_TAG_STR_LEN, NULL }
+#define mTG_L10N_STR(s) { #s, (s), sizeof(s), &s##_len }
+
+static void mTG_l10n_apply(void) {
+    static char s_applied_lang[32];
+    static mTG_l10n_entry_c entries[] = {
+        mTG_L10N_WORD(mTG_tag_word_akeru),
+        mTG_L10N_WORD(mTG_tag_word_ageru),
+        mTG_L10N_WORD(mTG_tag_word_itadaku),
+        mTG_L10N_WORD(mTG_tag_word_dump_item),
+        mTG_L10N_WORD(mTG_tag_word_field_sign),
+        mTG_L10N_WORD(mTG_tag_word_dump_mail),
+        mTG_L10N_WORD(mTG_tag_word_sell),
+        mTG_L10N_WORD(mTG_tag_word_sell_all),
+        mTG_L10N_WORD(mTG_tag_word_okuru),
+        mTG_L10N_WORD(mTG_tag_word_kakinaosu),
+        mTG_L10N_WORD(mTG_tag_word_kabeniharu),
+        mTG_L10N_WORD(mTG_tag_word_korewoireru),
+        mTG_L10N_WORD(mTG_tag_word_zimenniueru),
+        mTG_L10N_WORD(mTG_tag_word_zimennioku),
+        mTG_L10N_WORD(mTG_tag_word_suteru),
+        mTG_L10N_WORD(mTG_tag_word_tada),
+        mTG_L10N_WORD(mTG_tag_word_tukamu),
+        mTG_L10N_WORD(mTG_tag_word_tegamiwokaku),
+        mTG_L10N_WORD(mTG_tag_word_nedanwotukeru),
+        mTG_L10N_WORD(mTG_tag_word_present),
+        mTG_L10N_WORD(mTG_tag_word_miserudake),
+        mTG_L10N_WORD(mTG_tag_word_yameru),
+        mTG_L10N_WORD(mTG_tag_word_heyanioku),
+        mTG_L10N_WORD(mTG_tag_word_yukanisiku),
+        mTG_L10N_WORD(mTG_tag_word_yomu),
+        mTG_L10N_WORD(mTG_tag_word_watasu),
+        mTG_L10N_WORD(mTG_tag_word_100),
+        mTG_L10N_WORD(mTG_tag_word_1000),
+        mTG_L10N_WORD(mTG_tag_word_10000),
+        mTG_L10N_WORD(mTG_tag_word_30000),
+        mTG_L10N_WORD(mTG_tag_word_okane),
+        mTG_L10N_WORD(mTG_tag_word_beru),
+        mTG_L10N_WORD(mTG_tag_word_osameru),
+        mTG_L10N_WORD(mTG_tag_word_zenbutukamu),
+        mTG_L10N_WORD(mTG_tag_word_1maitukamu),
+        mTG_L10N_WORD(mTG_tag_word_1tamatukamu),
+        mTG_L10N_WORD(mTG_tag_word_order),
+        mTG_L10N_WORD(mTG_tag_word_zimenniumeru),
+        mTG_L10N_WORD(mTG_tag_word_nigasu),
+        mTG_L10N_WORD(mTG_tag_word_fly),
+        mTG_L10N_WORD(mTG_tag_word_akeru2),
+        mTG_L10N_WORD(mTG_tag_word_kesu),
+        mTG_L10N_WORD(mTG_tag_word_hai),
+        mTG_L10N_WORD(mTG_tag_word_iie),
+        mTG_L10N_WORD(mTG_tag_word_dump_mail_mark_conf),
+        mTG_L10N_WORD(mTG_tag_word_dump_mail_mark_exe),
+        mTG_L10N_WORD(mTG_tag_word_mailbox_change_mail),
+        mTG_L10N_WORD(mTG_tag_word_cpmail_change_mail),
+        mTG_L10N_WORD(mTG_tag_word_music_listen),
+        mTG_L10N_WORD(mTG_tag_word_music_takeout),
+        mTG_L10N_WORD(mTG_tag_word_music_takeout_all),
+        mTG_L10N_WORD(mTG_tag_word_hand_over_curator),
+        mTG_L10N_WORD(mTG_tag_word_nw_select_this),
+        mTG_L10N_WORD(mTG_tag_word_nw_select_put),
+        mTG_L10N_WORD(mTG_tag_word_nw_select_change),
+        mTG_L10N_WORD(mTG_tag_word_nw_st_wear),
+        mTG_L10N_WORD(mTG_tag_word_nw_st_umbrella),
+        mTG_L10N_WORD(mTG_tag_word_nw_cover),
+        mTG_L10N_WORD(mTG_tag_word_nw_carpet),
+        mTG_L10N_WORD(mTG_tag_word_nw_catch),
+        mTG_L10N_WORD(mTG_tag_word_nw_mr_sel_stick),
+        mTG_L10N_WORD(mTG_tag_word_nw_or_sel_stick),
+        mTG_L10N_WORD(mTG_tag_word_nw_sel_put),
+        mTG_L10N_WORD(mTG_tag_word_nw_put_umbrella),
+        mTG_L10N_WORD(mTG_tag_word_nw_put_wear),
+        mTG_L10N_WORD(mTG_tag_word_nw_stk_pat_nrml),
+        mTG_L10N_WORD(mTG_tag_word_nw_stk_pat_turn),
+        mTG_L10N_WORD(mTG_tag_word_remove),
+        mTG_L10N_WORD(mTG_tag_word_put_all),
+        mTG_L10N_WORD(mTG_tag_word_put_chk),
+        mTG_L10N_WORD(mTG_tag_word_never_mind),
+        mTG_L10N_WORD(mTG_tag_word_change_original),
+        mTG_L10N_WORD(mTG_tag_word_password_item),
+        mTG_L10N_STR(str_omikuji),
+        mTG_L10N_STR(str_happy_room),
+        mTG_L10N_STR(str_otodokemono),
+        mTG_L10N_STR(str_otegami),
+        mTG_L10N_STR(mTG_tag_str_suteruno),
+        mTG_L10N_STR(mTG_tag_str_put_chk1),
+        mTG_L10N_STR(mTG_tag_str_put_chk2),
+    };
+    const char* lang = pc_settings_get_language();
+    char path[512];
+    FILE* f;
+    u8 buf[256];
+
+    /* English ("default") uses the compiled-in words; otherwise the words live in
+     * translations/<lang>/code_strings.bin next to the other translation data. */
+    if (lang == NULL || lang[0] == '\0' || strcmp(lang, "default") == 0 ||
+        strcmp(lang, s_applied_lang) == 0) {
+        return;
+    }
+    snprintf(path, sizeof(path), "%s/%s/code_strings.bin", pc_settings_get_translations_dir(), lang);
+    f = fopen(path, "rb");
+    if (f == NULL) {
+        return;
+    }
+    strncpy(s_applied_lang, lang, sizeof(s_applied_lang) - 1);
+    s_applied_lang[sizeof(s_applied_lang) - 1] = '\0';
+    for (;;) {
+        int name_len = fgetc(f);
+        char name[256];
+        int len;
+        size_t i;
+
+        if (name_len == EOF || fread(name, 1, name_len, f) != (size_t)name_len) break;
+        name[name_len] = '\0';
+        len = fgetc(f);
+        if (len == EOF || fread(buf, 1, len, f) != (size_t)len) break;
+        for (i = 0; i < sizeof(entries) / sizeof(entries[0]); i++) {
+            if (strcmp(entries[i].name, name) == 0) {
+                int n = len < entries[i].max ? len : entries[i].max;
+                memset(entries[i].str, CHAR_SPACE, entries[i].max);
+                memcpy(entries[i].str, buf, n);
+                if (entries[i].len != NULL) {
+                    *entries[i].len = n;
+                }
+                break;
+            }
+        }
+    }
+    fclose(f);
+}
+#else
+#define mTG_STR_LEN(name) sizeof(name)
+#endif
 
 // clang-format off
 static u8 mTG_catalog_str[][mCL_TAG_STR_SIZE] = {
@@ -1566,7 +1752,7 @@ static void mTG_get_col_width_and_line_select(mTG_tag_c* tag, mTG_tag_data_c* ta
             f32 width;
 
             *max_height = (f32)(tag_data->lines + 1) * 16.0f;
-            width = mFont_GetStringWidth(mTG_tag_str_suteruno, sizeof(mTG_tag_str_suteruno), TRUE);
+            width = mFont_GetStringWidth(mTG_tag_str_suteruno, mTG_STR_LEN(mTG_tag_str_suteruno), TRUE);
 
             if (width > *max_width) {
                 *max_width = width;
@@ -1575,7 +1761,7 @@ static void mTG_get_col_width_and_line_select(mTG_tag_c* tag, mTG_tag_data_c* ta
         }
 
         case mTG_TYPE_TAG_PUT_CHK: {
-            *max_width = mFont_GetStringWidth(mTG_tag_str_put_chk1, sizeof(mTG_tag_str_put_chk1), TRUE);
+            *max_width = mFont_GetStringWidth(mTG_tag_str_put_chk1, mTG_STR_LEN(mTG_tag_str_put_chk1), TRUE);
             *max_height = (f32)(tag_data->lines + 2) * 16.0f;
             break;
         }
@@ -1771,8 +1957,8 @@ static int mTG_init_tag_data_item_win_sub_mail_item_omikuji(mTG_tag_c* tag, mTG_
 }
 
 static int mTG_init_tag_data_item_win_sub_mail_item_happy(mTG_tag_c* tag, mTG_str_info_c* str_infos, Mail_c* mail) {
-    mTG_strcpy(str_infos[1].str, str_happy_room, mTG_TAG_SEL_STRING_LEN, sizeof(str_happy_room));
-    str_infos[1].str_len = sizeof(str_happy_room);
+    mTG_strcpy(str_infos[1].str, str_happy_room, mTG_TAG_SEL_STRING_LEN, mTG_STR_LEN(str_happy_room));
+    str_infos[1].str_len = mTG_STR_LEN(str_happy_room);
     str_infos[1].color_idx = mTG_MAIL_NAME_COLOR_GREEN;
     tag->str2_type = mTG_QSTR_TYPE_HAPPY_ROOM;
 
@@ -1967,11 +2153,11 @@ static void mTG_init_tag_data_item_win_sub_mail_item(Submenu* submenu, mTG_tag_c
 
     if (tag->str2_type != mTG_QSTR_TYPE_NONE) {
         if (tag->str2_type == mTG_QSTR_TYPE_ITEM) {
-            mTG_strcpy(tag->str2, str_otodokemono, mTG_TAG_SEL_STRING_LEN, sizeof(str_otodokemono));
+            mTG_strcpy(tag->str2, str_otodokemono, mTG_TAG_SEL_STRING_LEN, mTG_STR_LEN(str_otodokemono));
         } else if (tag->str2_type == mTG_QSTR_TYPE_OMIKUJI) {
-            mTG_strcpy(tag->str2, str_omikuji, mTG_TAG_SEL_STRING_LEN, sizeof(str_omikuji));
+            mTG_strcpy(tag->str2, str_omikuji, mTG_TAG_SEL_STRING_LEN, mTG_STR_LEN(str_omikuji));
         } else {
-            mTG_strcpy(tag->str2, str_otegami, mTG_TAG_SEL_STRING_LEN, sizeof(str_otegami));
+            mTG_strcpy(tag->str2, str_otegami, mTG_TAG_SEL_STRING_LEN, mTG_STR_LEN(str_otegami));
         }
     }
 
@@ -8704,7 +8890,7 @@ static void mTG_set_character(Submenu* submenu, mSM_MenuInfo_c* menu_info, GAME*
             // clang-format off
             mFont_SetLineStrings(
                 game,
-                mTG_tag_str_suteruno, sizeof(mTG_tag_str_suteruno),
+                mTG_tag_str_suteruno, mTG_STR_LEN(mTG_tag_str_suteruno),
                 pos_x, pos_y,
                 220, 30, 220, 255,
                 FALSE,
@@ -8718,7 +8904,7 @@ static void mTG_set_character(Submenu* submenu, mSM_MenuInfo_c* menu_info, GAME*
             // clang-format off
             mFont_SetLineStrings(
                 game,
-                mTG_tag_str_put_chk1, sizeof(mTG_tag_str_put_chk1),
+                mTG_tag_str_put_chk1, mTG_STR_LEN(mTG_tag_str_put_chk1),
                 pos_x, pos_y,
                 220, 30, 220, 255,
                 FALSE,
@@ -8732,7 +8918,7 @@ static void mTG_set_character(Submenu* submenu, mSM_MenuInfo_c* menu_info, GAME*
             // clang-format off
             mFont_SetLineStrings(
                 game,
-                mTG_tag_str_put_chk2, sizeof(mTG_tag_str_put_chk2),
+                mTG_tag_str_put_chk2, mTG_STR_LEN(mTG_tag_str_put_chk2),
                 pos_x, pos_y,
                 220, 30, 220, 255,
                 FALSE,
@@ -8921,6 +9107,9 @@ static void mTG_draw_func(Submenu* submenu, GAME* game, int menu_type) {
 }
 
 extern void mTG_tag_ovl_construct(Submenu* submenu) {
+#ifdef TARGET_PC
+    mTG_l10n_apply();
+#endif
     Submenu_Overlay_c* overlay_p = submenu->overlay;
     mSM_Control_c* menu_control = &overlay_p->menu_control;
     mTG_Ovl_c* tag_ovl_p;
