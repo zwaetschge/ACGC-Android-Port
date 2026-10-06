@@ -75,36 +75,41 @@ static u32 pc_msg_eur_translate_cmd(const u8* p, u32 n, u8* out)
         out[2] = 0x05;
         return 3;
     }
+    /* The 0C 00 0x handlers below take exactly one message id. Longer payloads
+     * (several ids: random next message, random section, ...) differ per
+     * subcommand and are resolved by the exact-match table at the end; matching
+     * them here turned e.g. a random-of-3 into "next message for choice 2" and
+     * left Rover's train talk waiting forever. */
     /* EUR: 0C 00 00 <2B> → SETFORCEMSG */
-    if (n >= 5 && p[0] == 0x0C && p[1] == 0x00 && p[2] == 0x00) {
+    if (n == 5 && p[0] == 0x0C && p[1] == 0x00 && p[2] == 0x00) {
         out[0] = 0x7F; out[1] = mFont_CONT_CODE_SET_NEXT_MESSAGE_F;
         out[2] = p[3];
         out[3] = p[4];
         return 4;
     }
     /* EUR: 0C 00 01 <2B> → SETNEXTMSG0 */
-    if (n >= 5 && p[0] == 0x0C && p[1] == 0x00 && p[2] == 0x01) {
+    if (n == 5 && p[0] == 0x0C && p[1] == 0x00 && p[2] == 0x01) {
         out[0] = 0x7F; out[1] = mFont_CONT_CODE_SET_NEXT_MESSAGE_0;
         out[2] = p[3];
         out[3] = p[4];
         return 4;
     }
     /* EUR: 0C 00 02 <2B> → SETNEXTMSG1 */
-    if (n >= 5 && p[0] == 0x0C && p[1] == 0x00 && p[2] == 0x02) {
+    if (n == 5 && p[0] == 0x0C && p[1] == 0x00 && p[2] == 0x02) {
         out[0] = 0x7F; out[1] = mFont_CONT_CODE_SET_NEXT_MESSAGE_1;
         out[2] = p[3];
         out[3] = p[4];
         return 4;
     }
     /* EUR: 0C 00 03 <2B> → SETNEXTMSG2 */
-    if (n >= 5 && p[0] == 0x0C && p[1] == 0x00 && p[2] == 0x03) {
+    if (n == 5 && p[0] == 0x0C && p[1] == 0x00 && p[2] == 0x03) {
         out[0] = 0x7F; out[1] = mFont_CONT_CODE_SET_NEXT_MESSAGE_2;
         out[2] = p[3];
         out[3] = p[4];
         return 4;
     }
     /* EUR: 0C 00 04 <2B> → SETNEXTMSG3 */
-    if (n >= 5 && p[0] == 0x0C && p[1] == 0x00 && p[2] == 0x04) {
+    if (n == 5 && p[0] == 0x0C && p[1] == 0x00 && p[2] == 0x04) {
         out[0] = 0x7F; out[1] = mFont_CONT_CODE_SET_NEXT_MESSAGE_3;
         out[2] = p[3];
         out[3] = p[4];

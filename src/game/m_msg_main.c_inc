@@ -371,6 +371,74 @@ static int mMsg_LoadMsgData_EUR(mMsg_Data_c* msg_data, int index, int cut)
     return TRUE;
 }
 #endif /* TARGET_PC */
+#ifdef TARGET_PC
+/* Choice messages are loaded from the arc copy (message_data from the l10n
+ * pipeline) because only it has the USA choice ids and demo orders. Its text is
+ * merged by text-slot count, which fails whenever the EUR pauses differ: all text
+ * lands in the first bubble and the following bubbles are empty (K.K.'s intro).
+ * Use the EUR text from msg.bin up to the first choice code and the arc copy's
+ * USA tail from its first choice code on (select strings, window, next messages,
+ * demo orders). Both tails must be free of text, otherwise the arc copy stays. */
+static int mMsg_EUR_IsChoiceStart(u8* p, int i) {
+    return p[i] == 0x7F && (p[i + 1] == mFont_CONT_CODE_SET_SELECT_WINDOW ||
+                            (p[i + 1] >= mFont_CONT_CODE_SET_SELECT_STRING_2 &&
+                             p[i + 1] <= mFont_CONT_CODE_SET_SELECT_STRING_4));
+}
+
+/* Offset of the first choice code, or -1 if there is none or text follows it. */
+static int mMsg_EUR_FindChoiceTail(u8* p, int len) {
+    int i = 0;
+    int tail = -1;
+
+    while (i < len) {
+        int sz = mFont_CodeSize_idx_get(p, i);
+
+        if (tail < 0) {
+            if (mMsg_EUR_IsChoiceStart(p, i)) {
+                tail = i;
+            }
+        } else if (p[i] != 0x7F && p[i] != CHAR_NEW_LINE) {
+            return -1;
+        }
+        i += sz;
+    }
+    return tail;
+}
+
+static void mMsg_EUR_SpliceChoice(mMsg_Data_c* msg_data, int index) {
+    static u8 eur[mMsg_MSG_BUF_SIZE];
+    u32 n;
+    u32 data_size;
+    const u32* table = pc_msg_eur_get_table(&n);
+    const u8* data = pc_msg_eur_get_data(&data_size);
+    u8* out = msg_data->text_buf.data;
+    int arc_len = msg_data->msg_len;
+    int eur_len;
+    int arc_tail;
+    int eur_tail;
+    u32 start;
+
+    if (table == NULL || data == NULL || (u32)index >= n || arc_len <= 0 || arc_len > mMsg_MSG_BUF_MAX) {
+        return;
+    }
+    start = (index == 0) ? 0 : table[index - 1];
+    if (table[index] <= start || table[index] - start > mMsg_MSG_BUF_MAX) {
+        return;
+    }
+    eur_len = table[index] - start;
+    memcpy(eur, data + start, eur_len);
+
+    arc_tail = mMsg_EUR_FindChoiceTail(out, arc_len);
+    eur_tail = mMsg_EUR_FindChoiceTail(eur, eur_len);
+    if (arc_tail < 0 || eur_tail < 0 || eur_tail + (arc_len - arc_tail) > mMsg_MSG_BUF_MAX) {
+        return;
+    }
+
+    memmove(out + eur_tail, out + arc_tail, arc_len - arc_tail);
+    memcpy(out, eur, eur_tail);
+    msg_data->msg_len = mMsg_Count_MsgData(out);
+}
+#endif /* TARGET_PC */
 
 static int mMsg_LoadMsgData(mMsg_Data_c* msg_data, int index, int cut) {
 #ifdef TARGET_PC
@@ -432,6 +500,11 @@ static int mMsg_LoadMsgData(mMsg_Data_c* msg_data, int index, int cut) {
             msg_data->data_loaded = TRUE;
             msg_data->msg_len = mMsg_Count_MsgData(msg_data->text_buf.data);
             msg_data->cut = cut;
+#ifdef TARGET_PC
+            if (pc_msg_eur_is_active()) {
+                mMsg_EUR_SpliceChoice(msg_data, index);
+            }
+#endif
             return TRUE;
         }
     }
