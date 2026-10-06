@@ -30,6 +30,8 @@ enum {
     ITEM_STICK_DEADZONE,
     ITEM_CSTICK_DEADZONE,
     ITEM_BINDINGS,
+    ITEM_NOOK_JOB,
+    ITEM_CLOCK_SYNC,
 };
 
 /* Per-item static metadata. restart=1 appends " *" and folds into the
@@ -55,6 +57,8 @@ static const Item tab_gameplay_items[] = {
     { "Shop upgrade",     ITEM_SHOP_VISITOR,     0 },
     { "Borderless acres", ITEM_BORDERLESS_ACRES, 0 },
     { "NES aspect",       ITEM_NES_ASPECT,       0 },
+    { "Nook's job",       ITEM_NOOK_JOB,         0 },
+    { "Clock",            ITEM_CLOCK_SYNC,       0 },
 };
 
 static const Item tab_audio_items[] = {
@@ -257,7 +261,9 @@ static void recompute_dirty(void) {
         (s_pending.nes_aspect       != g_pc_settings.nes_aspect) ||
         (s_pending.master_volume    != g_pc_settings.master_volume) ||
         (s_pending.stick_deadzone   != g_pc_settings.stick_deadzone) ||
-        (s_pending.cstick_deadzone  != g_pc_settings.cstick_deadzone);
+        (s_pending.cstick_deadzone  != g_pc_settings.cstick_deadzone) ||
+        (s_pending.skip_first_job   != g_pc_settings.skip_first_job) ||
+        (s_pending.sync_clock       != g_pc_settings.sync_clock);
 }
 
 static void snapshot(void) {
@@ -315,6 +321,12 @@ static void item_cycle(int id, int dir) {
             break;
         case ITEM_NES_ASPECT:
             s_pending.nes_aspect = !s_pending.nes_aspect;
+            break;
+        case ITEM_NOOK_JOB:
+            s_pending.skip_first_job = !s_pending.skip_first_job;
+            break;
+        case ITEM_CLOCK_SYNC:
+            s_pending.sync_clock = !s_pending.sync_clock;
             break;
         case ITEM_MASTER_VOLUME: {
             int v = s_pending.master_volume + (dir > 0 ? 10 : -10);
@@ -386,6 +398,12 @@ static void item_format(int id, char* buf, size_t n) {
         case ITEM_NES_ASPECT:
             snprintf(buf, n, "%s", s_pending.nes_aspect ? "< 4:3 >" : "< Stretch >");
             break;
+        case ITEM_NOOK_JOB:
+            snprintf(buf, n, "%s", s_pending.skip_first_job ? "< Skip >" : "< Play >");
+            break;
+        case ITEM_CLOCK_SYNC:
+            snprintf(buf, n, "%s", s_pending.sync_clock ? "< Device time >" : "< Game time >");
+            break;
         case ITEM_MASTER_VOLUME:
             snprintf(buf, n, "< %d%% >", s_pending.master_volume);
             break;
@@ -422,6 +440,8 @@ static int item_changed(int id) {
         case ITEM_MASTER_VOLUME: return s_pending.master_volume != g_pc_settings.master_volume;
         case ITEM_STICK_DEADZONE:  return s_pending.stick_deadzone  != g_pc_settings.stick_deadzone;
         case ITEM_CSTICK_DEADZONE: return s_pending.cstick_deadzone != g_pc_settings.cstick_deadzone;
+        case ITEM_NOOK_JOB:      return s_pending.skip_first_job != g_pc_settings.skip_first_job;
+        case ITEM_CLOCK_SYNC:    return s_pending.sync_clock     != g_pc_settings.sync_clock;
         case ITEM_BINDINGS:      return 0; /* bindings save themselves */
     }
     return 0;

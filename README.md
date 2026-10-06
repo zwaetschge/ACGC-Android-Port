@@ -31,10 +31,13 @@ data; the launcher walks you through importing your own disc.
 - **HD texture pack**: one-tap download of the community *Animal Crossing HD Texture Pack* and on-device BC7 → ASTC conversion
 - **Translations** (German, French, Italian, Spanish) generated from your European disc (GAFP01)
 - Launcher in the system language (English, German, French, Italian, Spanish) with a language switch that also selects the game language
+- **Play together**: visit a friend's town by code through a small server anyone can host ([tools/multiplayer-server](tools/multiplayer-server))
+- Optional Deluxe-style settings in the in-game options (Android *Back* opens them): skip Tom Nook's part-time job, sync the clock to the device time
+- **Animal Crossing Deluxe** (Cuyler36's mod) can be built from your disc and is played in Dolphin – it replaces the game code, so it cannot run on this port itself
 
 ## Using the app
 
-The launcher has three steps:
+The launcher has these sections:
 
 1. **Game data** – choose your USA disc image (file picker or SMB share). NKit images are rebuilt into a
    plain ISO on the device.
@@ -48,6 +51,18 @@ The launcher has three steps:
    villager names into the app. English is built in.
    German additionally gets the pack's German UI textures (notice board, HUD, inventory labels) when HD
    textures are installed.
+
+4. **Play together (optional)** – the GameCube game's multiplayer is visiting a friend's town from memory
+   card B. Instead of handing over a card, one player *Shares* their town and gets a short code; the friend
+   enters it under *Visit a town*, takes the train in the game, and later *Sends the town back*. The owner then
+   *Gets the town back*. This needs a server that one of you hosts – a single Python file or a Docker container,
+   see [tools/multiplayer-server](tools/multiplayer-server/README.md).
+5. **Animal Crossing Deluxe (optional)** – builds Cuyler36's [Deluxe](https://cuyler36.github.io/acdx/) image
+   from your disc with the official patches and opens it in [Dolphin](https://dolphin-emu.org/).
+
+Settings that the original game has no menu for are in the in-game options: press *Back* (or *Esc* on a
+keyboard) while playing. *Gameplay* has **Nook's job** (skip the part-time job; a running job is finished on the
+next load) and **Clock** (reset the in-game clock to the device time on every load).
 
 Data lives in the app's private storage (`files/rom`, `files/texture_pack`, `files/translations`,
 `files/save`) and is removed when the app is uninstalled. Back up `files/save` first.

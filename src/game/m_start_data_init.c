@@ -24,6 +24,9 @@
 #include "m_event.h"
 #include "m_common_data.h"
 #include "m_design_ovl.h"
+#ifdef TARGET_PC
+#include "pc_settings.h"
+#endif
 
 static void famicom_emu_initial_common_data() {
     // stubbed
@@ -616,6 +619,13 @@ extern int mSDI_StartDataInit(GAME* game, int player_no, int init_mode) {
     if (init_mode < mSDI_INIT_MODE_NEW || init_mode >= mSDI_INIT_MODE_NUM) {
         init_mode = mSDI_INIT_MODE_NEW;
     }
+
+#ifdef TARGET_PC
+    /* Optional (Deluxe-style clock sync): drop the offset set with the in-game time menu */
+    if (g_pc_settings.sync_clock && init_mode != mSDI_INIT_MODE_NEW) {
+        Save_Set(time_delta, 0);
+    }
+#endif
 
     res = mSDI_StartInitBefore(game, player_no, init_mode, mSDI_MALLOC_FLAG_ZELDA);
     if (res == TRUE) {

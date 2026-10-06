@@ -25,6 +25,8 @@ PCSettings g_pc_settings = {
     .master_volume = 100,
     .stick_deadzone = 12,
     .cstick_deadzone = 12,
+    .skip_first_job = 0,
+    .sync_clock = 0,
 };
 
 static const char* SETTINGS_FILE = "settings.ini";
@@ -66,6 +68,12 @@ static const char* DEFAULT_SETTINGS =
     "\n"
     "# NES emulator aspect ratio: 0 = stretch to fullscreen, 1 = 4:3 pillarbox\n"
     "nes_aspect = 1\n"
+    "\n"
+    "# Skip Tom Nook's part-time job: 0 = play it, 1 = skip (a running job is finished)\n"
+    "skip_first_job = 0\n"
+    "\n"
+    "# Reset the in-game clock to the device time when loading: 0 = keep the game's own time, 1 = sync\n"
+    "sync_clock = 0\n"
     "\n"
     "[Audio]\n"
     "# Master output volume as a percentage (0-100)\n"
@@ -135,6 +143,10 @@ static void apply_setting(const char* key, const char* value) {
         if (val >= 0 && val <= 40) g_pc_settings.stick_deadzone = val;
     } else if (strcmp(key, "cstick_deadzone") == 0) {
         if (val >= 0 && val <= 40) g_pc_settings.cstick_deadzone = val;
+    } else if (strcmp(key, "skip_first_job") == 0) {
+        if (val == 0 || val == 1) g_pc_settings.skip_first_job = val;
+    } else if (strcmp(key, "sync_clock") == 0) {
+        if (val == 0 || val == 1) g_pc_settings.sync_clock = val;
     }
 }
 
@@ -214,6 +226,12 @@ void pc_settings_save(void) {
     fprintf(f, "\n");
     fprintf(f, "# NES emulator aspect ratio: 0 = stretch to fullscreen, 1 = 4:3 pillarbox\n");
     fprintf(f, "nes_aspect = %d\n", g_pc_settings.nes_aspect);
+    fprintf(f, "\n");
+    fprintf(f, "# Skip Tom Nook's part-time job: 0 = play it, 1 = skip (a running job is finished)\n");
+    fprintf(f, "skip_first_job = %d\n", g_pc_settings.skip_first_job);
+    fprintf(f, "\n");
+    fprintf(f, "# Reset the in-game clock to the device time when loading: 0 = keep the game's own time, 1 = sync\n");
+    fprintf(f, "sync_clock = %d\n", g_pc_settings.sync_clock);
     fprintf(f, "\n");
     fprintf(f, "[Audio]\n");
     fprintf(f, "# Master output volume as a percentage (0-100)\n");

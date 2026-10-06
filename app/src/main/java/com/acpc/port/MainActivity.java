@@ -36,12 +36,14 @@ import java.util.Locale;
  *  - USA disc (GAFE01), required: file picker or SMB share (NKit is converted)
  *  - HD texture pack, optional: downloaded from its original source and converted
  *  - translation, optional: generated from the user's European disc (GAFP01)
+ *  - Animal Crossing Deluxe, optional: built from the user's disc, played in Dolphin
+ *  - town visits by code through a self-hosted server
  * The UI follows the system language unless another language is chosen; the
  * same choice selects the game language when its translation exists.
  */
 public class MainActivity extends Activity {
 
-    private enum Purpose { US_DISC, EU_DISC, HD_ZIP }
+    private enum Purpose { US_DISC, EU_DISC, HD_ZIP, ACDX_SOURCE }
 
     // palette
     private static final int BG_TOP = 0xFF0E2A22, BG_BOTTOM = 0xFF1B4334;
@@ -117,10 +119,9 @@ public class MainActivity extends Activity {
         root.addView(hint);
 
         // cards, two columns on wide screens
-        View[] cards = {discCard(rom), hdCard(), languageCard(), controlsCard()};
+        View[] cards = {discCard(rom), hdCard(), languageCard(), controlsCard(), multiplayerCard(), deluxeCard()};
         if (getResources().getConfiguration().screenWidthDp >= 700) {
-            root.addView(pair(cards[0], cards[1]));
-            root.addView(pair(cards[2], cards[3]));
+            for (int i = 0; i < cards.length; i += 2) root.addView(pair(cards[i], cards[i + 1]));
         } else {
             for (View c : cards) root.addView(c, cardParams(false));
         }
@@ -205,6 +206,66 @@ public class MainActivity extends Activity {
         return c;
     }
 
+    private View multiplayerCard() {
+        LinearLayout c = card("🚂", getString(R.string.mp_title));
+        String server = Multiplayer.server(this);
+        String shared = Multiplayer.sharedCode(this);
+        String visit = Multiplayer.visitCode(this);
+        if (server.isEmpty()) {
+            status(c, GREY, getString(R.string.mp_no_server));
+        } else if (visit != null) {
+            status(c, YELLOW, getString(R.string.mp_visiting, visit));
+        } else if (shared != null) {
+            status(c, YELLOW, getString(R.string.mp_shared, shared));
+        } else {
+            status(c, GREEN, getString(R.string.mp_server, Uri.parse(server).getAuthority()));
+        }
+        desc(c, getString(R.string.mp_desc));
+        if (server.isEmpty()) {
+            actions(c, pill(getString(R.string.mp_set_server), GREEN, ON_ACCENT, this::serverDialog));
+            return c;
+        }
+        actions(c, pill(getString(R.string.mp_share), shared == null ? GREEN : GHOST, shared == null ? ON_ACCENT : TEXT,
+                        this::shareTown),
+                pill(getString(R.string.mp_visit), GHOST, TEXT, this::visitDialog));
+        if (visit != null) {
+            actions(c, pill(getString(R.string.mp_send_back), GREEN, ON_ACCENT, this::sendBack),
+                    pill(getString(R.string.mp_server_short), GHOST, TEXT, this::serverDialog));
+        } else if (shared != null) {
+            actions(c, pill(getString(R.string.mp_fetch_back), GREEN, ON_ACCENT, this::fetchBack),
+                    pill(getString(R.string.mp_server_short), GHOST, TEXT, this::serverDialog));
+        } else {
+            actions(c, pill(getString(R.string.mp_server_short), GHOST, TEXT, this::serverDialog));
+        }
+        return c;
+    }
+
+    private View deluxeCard() {
+        LinearLayout c = card("🌟", getString(R.string.acdx_title));
+        String built = Acdx.builtVersion(this);
+        boolean dolphin = Acdx.dolphinInstalled(this);
+        if (built == null) {
+            status(c, GREY, getString(R.string.acdx_missing));
+        } else if (!dolphin) {
+            status(c, YELLOW, getString(R.string.acdx_need_dolphin, built));
+        } else {
+            status(c, GREEN, getString(R.string.acdx_ready, built, Acdx.builtLocation(this)));
+        }
+        desc(c, getString(R.string.acdx_desc));
+        Button buildBtn = pill(getString(built == null ? R.string.acdx_build : R.string.acdx_rebuild),
+                built == null ? GREEN : GHOST, built == null ? ON_ACCENT : TEXT, this::confirmDeluxe);
+        if (built == null) {
+            actions(c, buildBtn, pill(getString(R.string.acdx_about), GHOST, TEXT,
+                    () -> open(new Intent(Intent.ACTION_VIEW, Uri.parse(Acdx.PAGE)))));
+        } else if (!dolphin) {
+            actions(c, pill(getString(R.string.acdx_get_dolphin), GREEN, ON_ACCENT, () -> open(Acdx.storeIntent())),
+                    buildBtn);
+        } else {
+            actions(c, pill(getString(R.string.acdx_play), YELLOW, 0xFF2B2A1E, this::playDeluxe), buildBtn);
+        }
+        return c;
+    }
+
     /* ---------- actions ---------- */
 
     private void play() {
@@ -259,6 +320,200 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    private void confirmDeluxe() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.acdx_title)
+                .setMessage(R.string.acdx_confirm)
+                .setPositiveButton(R.string.choose_file, (d, w) -> pickFile(Purpose.ACDX_SOURCE))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void buildDeluxe(Uri source) {
+        runTask(getString(R.string.acdx_title), pd -> {
+            Acdx.Progress p = (msg, done, total) -> {
+                if (total > 0) progress(pd, msg, done, total);
+                else step(pd, msg);
+            };
+            Acdx.Match m = Acdx.match(this, source, p);
+            Acdx.build(this, source, m, p);
+            runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.acdx_built_title, m.version))
+                    .setMessage(getString(R.string.acdx_built, Acdx.builtLocation(this)))
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show());
+        });
+    }
+
+    private void playDeluxe() {
+        android.content.SharedPreferences sp = getSharedPreferences("acdx", MODE_PRIVATE);
+        if (sp.getBoolean("folder_added", false)) {
+            open(Acdx.playIntent());
+            return;
+        }
+        // Dolphin only starts games from its library: the folder must be added there once
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.acdx_title)
+                .setMessage(R.string.acdx_dolphin_setup)
+                .setPositiveButton(R.string.acdx_start, (d, w) -> {
+                    sp.edit().putBoolean("folder_added", true).apply();
+                    open(Acdx.playIntent());
+                })
+                .setNeutralButton(R.string.acdx_open_dolphin, (d, w) -> {
+                    Intent i = getPackageManager().getLaunchIntentForPackage(Acdx.DOLPHIN);
+                    if (i != null) open(i);
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void open(Intent i) {
+        try {
+            startActivity(i);
+        } catch (Exception e) {
+            error(e);
+        }
+    }
+
+    private void serverDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        TextView help = text(getString(R.string.mp_server_help), 13, 0xFF666666, false);
+        box.addView(help);
+        EditText url = field(box, getString(R.string.mp_server_url), Multiplayer.server(this));
+        url.setHint("http://192.168.1.10:8765");
+        EditText key = field(box, getString(R.string.mp_server_key), Multiplayer.key(this));
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.mp_set_server)
+                .setView(box)
+                .setPositiveButton(R.string.connect, (d, w) -> {
+                    Multiplayer.setServer(this, url.getText().toString(), key.getText().toString());
+                    if (Multiplayer.server(this).isEmpty()) {
+                        build();
+                        return;
+                    }
+                    runTask(getString(R.string.mp_title), pd -> {
+                        String mode = Multiplayer.checkServer(this);
+                        runOnUiThread(() -> toast(getString(R.string.mp_server_ok)
+                                + (mode.equals("key") && Multiplayer.key(this).isEmpty()
+                                ? "\n" + getString(R.string.mp_server_needs_key) : "")));
+                    });
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void shareTown() {
+        String old = Multiplayer.sharedCode(this);
+        if (old != null) {
+            new AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.mp_code_title, old))
+                    .setMessage(R.string.mp_reshare)
+                    .setPositiveButton(R.string.mp_share_new, (d, w) -> {
+                        runTask(getString(R.string.mp_title), pd -> Multiplayer.unshare(this));
+                    })
+                    .setNegativeButton(R.string.cancel, null)
+                    .show();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.mp_share)
+                .setMessage(R.string.mp_share_confirm)
+                .setPositiveButton(R.string.mp_share, (d, w) -> runTask(getString(R.string.mp_title), pd -> {
+                    String code = Multiplayer.share(this);
+                    runOnUiThread(() -> showCode(code));
+                }))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void showCode(String code) {
+        TextView big = text(code, 40, 0xFF2B2A1E, true);
+        big.setGravity(Gravity.CENTER);
+        big.setLetterSpacing(0.15f);
+        big.setPadding(0, dp(16), 0, dp(8));
+        big.setTextIsSelectable(true);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.mp_code_ready)
+                .setView(big)
+                .setMessage(R.string.mp_code_help)
+                .setPositiveButton(R.string.mp_copy, (d, w) -> {
+                    android.content.ClipboardManager cm = getSystemService(android.content.ClipboardManager.class);
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("code", code));
+                })
+                .setNegativeButton(android.R.string.ok, null)
+                .show();
+    }
+
+    private void visitDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        EditText code = field(box, getString(R.string.mp_code), "");
+        code.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.mp_visit)
+                .setView(box)
+                .setPositiveButton(R.string.mp_visit, (d, w) -> {
+                    String c = code.getText().toString().trim().toUpperCase(Locale.US).replace(" ", "");
+                    runTask(getString(R.string.mp_title), pd -> {
+                        org.json.JSONObject info = Multiplayer.info(this, c);
+                        Multiplayer.visit(this, c);
+                        String town = info.optString("town");
+                        runOnUiThread(() -> new AlertDialog.Builder(this)
+                                .setTitle(R.string.mp_visit_ready_title)
+                                .setMessage(getString(R.string.mp_visit_ready, town.isEmpty() ? c : town))
+                                .setPositiveButton(R.string.play, (d2, w2) -> play())
+                                .setNegativeButton(android.R.string.ok, null)
+                                .show());
+                    });
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void sendBack() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.mp_send_back)
+                .setMessage(R.string.mp_send_back_confirm)
+                .setPositiveButton(R.string.mp_send_back, (d, w) -> runTask(getString(R.string.mp_title), pd -> {
+                    Multiplayer.sendBack(this);
+                    runOnUiThread(() -> toast(getString(R.string.mp_sent_back)));
+                }))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void fetchBack() {
+        String code = Multiplayer.sharedCode(this);
+        runTask(getString(R.string.mp_title), pd -> {
+            org.json.JSONObject info = Multiplayer.info(this, code);
+            runOnUiThread(() -> {
+                if (!info.optBoolean("returned")) {
+                    new AlertDialog.Builder(this)
+                            .setTitle(getString(R.string.mp_code_title, code))
+                            .setMessage(R.string.mp_not_returned)
+                            .setPositiveButton(android.R.string.ok, null)
+                            .setNeutralButton(R.string.mp_unshare, (d, w) ->
+                                    runTask(getString(R.string.mp_title), p2 -> Multiplayer.unshare(this)))
+                            .show();
+                    return;
+                }
+                new AlertDialog.Builder(this)
+                        .setTitle(R.string.mp_fetch_back)
+                        .setMessage(getString(R.string.mp_fetch_confirm, info.optString("visitor")))
+                        .setPositiveButton(R.string.mp_fetch_back, (d, w) -> runTask(getString(R.string.mp_title), p2 -> {
+                            Multiplayer.fetchBack(this);
+                            runOnUiThread(() -> toast(getString(R.string.mp_fetched)));
+                        }))
+                        .setNegativeButton(R.string.cancel, null)
+                        .show();
+            });
+        });
+    }
+
     private void confirmHdDownload() {
         new AlertDialog.Builder(this)
                 .setTitle(HdPack.NAME)
@@ -303,6 +558,10 @@ public class MainActivity extends Activity {
         Uri uri = data.getData();
         if (uri == null) return;
         Purpose p = Purpose.values()[idx];
+        if (p == Purpose.ACDX_SOURCE) {
+            buildDeluxe(uri); // read in place, a full disc image is 1.4 GB
+            return;
+        }
         runTask(getString(R.string.import_title), pd -> {
             File tmp = tempFor(p);
             try (InputStream in = getContentResolver().openInputStream(uri)) {
@@ -332,6 +591,8 @@ public class MainActivity extends Activity {
                 }
                 case HD_ZIP:
                     installHd(pd, tmp);
+                    break;
+                case ACDX_SOURCE:
                     break;
             }
         } finally {

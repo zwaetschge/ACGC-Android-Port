@@ -1,0 +1,13 @@
+services:
+  acgc-relay:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./data:/data
+    environment:
+      # Optional: players must enter this key in the app (keeps strangers out).
+      ACGC_KEY: ""
+      # How long shared towns are kept.
+      ACGC_DAYS: "7"

@@ -1,14 +1,17 @@
 """Entry points called from the Android launcher (via Chaquopy).
 
-Everything here works on files the user supplied; nothing is downloaded.
+Everything here works on files the user supplied; downloads (HD pack, Deluxe
+patch) happen in the Java launcher.
 """
 import argparse
+import hashlib
 import os
 import shutil
 import sys
 from pathlib import Path
 
 from .disc import Disc, tgc_files
+from . import xdelta
 
 # Android: copying extended attributes (the SELinux label) fails with EACCES,
 # which breaks shutil.copy2/copytree inside the l10n tools. Metadata is irrelevant here.
@@ -37,6 +40,27 @@ def disc_info(path):
         return f"{d.game_id}|{d.kind}"
     finally:
         d.close()
+
+
+def sha1_file(path):
+    h = hashlib.sha1()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest().upper()
+
+
+def build_deluxe(source, patch, out, expected_sha1, cb=None):
+    """Apply an Animal Crossing Deluxe xdelta patch to the user's clean disc
+    image and verify the result against the published output hash."""
+    _say(cb, "step_acdx_patch")
+    xdelta.apply(source, patch, out)
+    _say(cb, "step_acdx_verify")
+    got = sha1_file(out)
+    if expected_sha1 and got != expected_sha1.upper():
+        os.remove(out)
+        raise ValueError(f"patched image SHA-1 {got} does not match {expected_sha1}")
+    return got
 
 
 def import_us_disc(src, rom_dir, cb=None):
@@ -88,7 +112,8 @@ def generate_translation(us_disc, eur_disc, lang, files_dir, work_dir, cb=None):
     finally:
         eur.close()
     for name, data in tgc_files(tgc).items():
-        if name in ("forest_msg.arc", "forest_2nd.arc", "forest_1st_script.arc", "forestd.rel.szs"):
+        if name in ("forest_msg.arc", "forest_2nd.arc", "forest_1st_script.arc", "forestd.rel.szs",
+                    "foresta.rel.szs", "foresta.map"):
             with open(os.path.join(eur_dir, name), "wb") as f:
                 f.write(data)
     del tgc
@@ -126,6 +151,52 @@ def generate_translation(us_disc, eur_disc, lang, files_dir, work_dir, cb=None):
     else:
         raise RuntimeError("msg.bin not found in forest_msg.arc")
 
+    _extract_code_strings(os.path.join(eur_dir, "foresta.rel.szs"), os.path.join(eur_dir, "foresta.map"),
+                          os.path.join(out_dir, "code_strings.bin"))
+
     shutil.rmtree(work_dir, ignore_errors=True)
     _say(cb, "step_done")
     return out_dir
+
+
+# UI strings that the USA build keeps as C literals (inventory tag menu), looked up
+# by symbol name in the European foresta.rel. Tag words are 16-byte fields.
+CODE_STRINGS = ("str_omikuji", "str_happy_room", "str_otodokemono", "str_otegami", "mTG_tag_str_suteruno",
+                "mTG_tag_str_put_chk1", "mTG_tag_str_put_chk2")
+
+
+def _extract_code_strings(rel_szs, map_path, out_path):
+    """Write code_strings.bin: records of (u8 name_len, name, u8 len, bytes)."""
+    import re
+    import struct
+    import l10n_flow
+
+    rel = l10n_flow._yaz0_decompress(open(rel_szs, "rb").read())
+    num, table = struct.unpack_from(">II", rel, 0x0C)
+    offsets = [struct.unpack_from(">I", rel, table + 8 * i)[0] & ~1 for i in range(num)]
+    # section order in the map matches the REL section indices (.text = 1)
+    section_index = {".text": 1, ".ctors": 2, ".dtors": 3, ".rodata": 4, ".data": 5}
+    symbols = {}
+    section = None
+    with open(map_path, encoding="ascii", errors="replace") as f:
+        for line in f:
+            m = re.match(r"^(\.\w+) section layout", line)
+            if m:
+                section = m.group(1)
+                continue
+            m = re.match(r"^\s+([0-9a-f]{8}) ([0-9a-f]{6}) [0-9a-f]{8}\s+\d+ (\S+)\s+m_tag_ovl\.o", line)
+            if m and section in section_index:
+                symbols.setdefault(m.group(3), (section, int(m.group(1), 16), int(m.group(2), 16)))
+
+    records = []
+    for name, (section, addr, size) in sorted(symbols.items()):
+        if name.startswith("mTG_tag_word_"):
+            size = 16
+        elif name not in CODE_STRINGS:
+            continue
+        start = offsets[section_index[section]] + addr
+        data = rel[start:start + min(size, 32)]
+        records.append(struct.pack("B", len(name)) + name.encode() + struct.pack("B", len(data)) + data)
+    with open(out_path, "wb") as f:
+        f.write(b"".join(records))
+    return len(records)

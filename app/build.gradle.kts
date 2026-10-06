@@ -62,8 +62,8 @@ android {
         applicationId = "com.acpc.port"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
         ndk {
             // armeabi-v7a: the original 32-bit port. arm64-v8a: for devices without
             // 32-bit support; built from the same sources with the 64-bit code paths

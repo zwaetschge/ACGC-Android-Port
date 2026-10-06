@@ -8,6 +8,9 @@
 #include "m_bgm.h"
 #include "m_player_lib.h"
 #include "m_house.h"
+#ifdef TARGET_PC
+#include "pc_settings.h"
+#endif
 
 enum {
     aID_ACT_FIRST_SET,

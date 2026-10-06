@@ -323,7 +323,14 @@ static void __osFree_NoLock(OSArena* arena, void* ptr) {
 
     if (ptr != NULL) {
         if (!OS_MALLOC_BLOCK_OK(block)) {
-            OSReport(VT_COL(RED, WHITE) "__osFree:不正解放(%08x)\n" VT_RST, ptr); // __osFree: irregular deallocation
+            /* PC port: report once per bad pointer — this path can be hit every
+             * frame and otherwise floods the log (GBs within a minute). */
+            static void* s_last_bad_ptr;
+            if (s_last_bad_ptr != ptr) {
+                s_last_bad_ptr = ptr;
+                OSReport(VT_COL(RED, WHITE) "__osFree:不正解放(%08x) caller %p\n" VT_RST, ptr,
+                         __builtin_return_address(0)); // __osFree: irregular deallocation
+            }
             OSPanic(__FILE__, 738, "");
             return;
         }

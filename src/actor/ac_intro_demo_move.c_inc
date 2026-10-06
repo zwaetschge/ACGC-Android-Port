@@ -190,6 +190,12 @@ static void aID_retire_rcn_guide_wait(INTRO_DEMO_ACTOR* intro_demo, GAME_PLAY* p
 }
 
 static void aID_first_job(INTRO_DEMO_ACTOR* intro_demo, GAME_PLAY* play) {
+#ifdef TARGET_PC
+    /* Optional (Deluxe-style): skip the part-time job, also finishes one already running */
+    if (g_pc_settings.skip_first_job) {
+        intro_demo->_1A8 = TRUE;
+    }
+#endif
     if (intro_demo->_1A8 == TRUE) {
         mQst_errand_c* errand = mQst_GetFirstJobData();
 

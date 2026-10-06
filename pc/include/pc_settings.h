@@ -21,6 +21,8 @@ typedef struct {
     int master_volume;    /* Applied at the PC audio output, 0-100 (default 100) */
     int stick_deadzone;   /* Gamepad main stick deadzone, percent 0-40 (default 12) */
     int cstick_deadzone;  /* Gamepad C-stick deadzone, percent 0-40 (default 12) */
+    int skip_first_job;   /* 1 = skip Tom Nook's part-time job (Deluxe-style), finishes a running job on load */
+    int sync_clock;       /* 1 = reset the in-game clock to the device time when a town is loaded */
 } PCSettings;
 
 extern PCSettings g_pc_settings;
