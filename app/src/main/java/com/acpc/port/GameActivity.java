@@ -1,11 +1,17 @@
 package com.acpc.port;
 
+import android.content.Context;
+import android.os.Build;
 import android.os.Bundle;
+import android.util.DisplayMetrics;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.Surface;
+import android.view.SurfaceHolder;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.RelativeLayout;
 
 import org.libsdl.app.SDLActivity;
 
@@ -18,6 +24,9 @@ public class GameActivity extends SDLActivity {
 
     /** Pushes the on-screen pad state into PADRead (android_glue.c). */
     public static native void nativeTouchPad(int buttons, int stickX, int stickY, int cstickX, int cstickY);
+
+    private static final int[] RENDER_HEIGHTS = {480, 540, 720, 0};
+    private static final int DEFAULT_RENDER_HEIGHT = 540;
 
     private TouchControlsView touchControls;
 
@@ -37,10 +46,67 @@ public class GameActivity extends SDLActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         extractAssetsOnce();
         super.onCreate(savedInstanceState);
+        limitRenderResolution();
+        lockRefreshRate();
         if (mLayout != null && touchOverlayEnabled(this)) {
             touchControls = new TouchControlsView(this);
             mLayout.addView(touchControls, new ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+    }
+
+    /** Internal render height in pixels, 0 = native. */
+    static int renderHeight(Context ctx) {
+        return ctx.getSharedPreferences("video", MODE_PRIVATE).getInt("render_height", DEFAULT_RENDER_HEIGHT);
+    }
+
+    static void setRenderHeight(Context ctx, int height) {
+        ctx.getSharedPreferences("video", MODE_PRIVATE).edit().putInt("render_height", height).apply();
+    }
+
+    static int nextRenderHeight(int current) {
+        for (int i = 0; i < RENDER_HEIGHTS.length; i++) {
+            if (RENDER_HEIGHTS[i] == current) return RENDER_HEIGHTS[(i + 1) % RENDER_HEIGHTS.length];
+        }
+        return DEFAULT_RENDER_HEIGHT;
+    }
+
+    /** A fixed-size surface is upscaled by the display compositor, so the GPU only fills the smaller buffer. */
+    private void limitRenderResolution() {
+        int target = renderHeight(this);
+        if (target <= 0 || mSurface == null) return;
+        DisplayMetrics dm = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getRealMetrics(dm);
+        int shortSide = Math.min(dm.widthPixels, dm.heightPixels);
+        int longSide = Math.max(dm.widthPixels, dm.heightPixels);
+        if (shortSide <= target) return;
+        int width = Math.round(longSide * (float) target / shortSide) & ~1;
+        // SDL adds the surface as wrap_content, which would show the small buffer unscaled
+        mSurface.setLayoutParams(new RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        mSurface.getHolder().setFixedSize(width, target);
+    }
+
+    /** The game is paced at 60 fps; on a 90/120 Hz panel that judders unless the display runs at 60. */
+    private void lockRefreshRate() {
+        WindowManager.LayoutParams lp = getWindow().getAttributes();
+        lp.preferredRefreshRate = 60f;
+        getWindow().setAttributes(lp);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && mSurface != null) {
+            mSurface.getHolder().addCallback(new SurfaceHolder.Callback() {
+                @Override
+                public void surfaceCreated(SurfaceHolder holder) {
+                    holder.getSurface().setFrameRate(60f, Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE);
+                }
+
+                @Override
+                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                }
+
+                @Override
+                public void surfaceDestroyed(SurfaceHolder holder) {
+                }
+            });
         }
     }
 

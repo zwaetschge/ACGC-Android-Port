@@ -119,7 +119,7 @@ public class MainActivity extends Activity {
         root.addView(hint);
 
         // cards, two columns on wide screens
-        View[] cards = {discCard(rom), hdCard(), languageCard(), controlsCard(), multiplayerCard(), deluxeCard()};
+        View[] cards = {discCard(rom), hdCard(), languageCard(), controlsCard(), videoCard(), multiplayerCard(), deluxeCard()};
         if (getResources().getConfiguration().screenWidthDp >= 700) {
             for (int i = 0; i < cards.length; i += 2) root.addView(pair(cards[i], cards[i + 1]));
         } else {
@@ -201,6 +201,18 @@ public class MainActivity extends Activity {
         desc(c, getString(R.string.controls_desc));
         actions(c, pill(getString(on ? R.string.turn_off : R.string.turn_on), GHOST, TEXT, () -> {
             GameActivity.setTouchOverlayEnabled(this, !GameActivity.touchOverlayEnabled(this));
+            build();
+        }));
+        return c;
+    }
+
+    private View videoCard() {
+        LinearLayout c = card("🖥", getString(R.string.video_title));
+        int height = GameActivity.renderHeight(this);
+        status(c, GREEN, height > 0 ? getString(R.string.video_res, height) : getString(R.string.video_native));
+        desc(c, getString(R.string.video_desc));
+        actions(c, pill(getString(R.string.video_change), GHOST, TEXT, () -> {
+            GameActivity.setRenderHeight(this, GameActivity.nextRenderHeight(height));
             build();
         }));
         return c;

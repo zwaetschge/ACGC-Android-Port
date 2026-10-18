@@ -115,4 +115,9 @@
     <string name="acdx_dolphin_setup">In Dolphin, tap \"Add Games\" (or Settings, Paths) once and choose the folder Download/ACDX. Afterwards this button starts Deluxe directly.</string>
     <string name="acdx_start">Start Deluxe</string>
     <string name="acdx_open_dolphin">Open Dolphin</string>
+    <string name="video_title">Graphics</string>
+    <string name="video_res">Internal resolution: %dp</string>
+    <string name="video_native">Internal resolution: native</string>
+    <string name="video_desc">Lower values run smoother on weaker GPUs. The picture is scaled to fill the screen.</string>
+    <string name="video_change">Change</string>
 </resources>
