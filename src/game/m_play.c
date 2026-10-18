@@ -865,6 +865,11 @@ static void Game_play_draw(GAME_PLAY* play) {
     }
 }
 
+#ifdef TARGET_ANDROID
+extern int g_pc_logic_steps;
+extern double g_pc_logic_step_dt;
+#endif
+
 extern void play_main(GAME* game) {
     GAME_PLAY* play = (GAME_PLAY*)game;
 
@@ -900,7 +905,33 @@ extern void play_main(GAME* game) {
     game->doing_point_specific = 0x8C;
 
     if ((GETREG(HREG, 80) != 10) || (GETREG(HREG, 81) != 0)) {
+#ifdef TARGET_ANDROID
+        GRAPH* graph = game->graph;
+        double total_dt_frames = graph->dt_num_60fps_frames;
+        double total_dt = graph->dt;
+        int i;
+        int p;
+
+        for (i = 0; i < g_pc_logic_steps; i++) {
+            graph->dt_num_60fps_frames = g_pc_logic_step_dt;
+            graph->dt = g_pc_logic_step_dt / 60.0;
+
+            if (i > 0) {
+                /* extra steps share one pad read, so drop the press/release edges */
+                for (p = 0; p < (int)(sizeof(game->pads) / sizeof(game->pads[0])); p++) {
+                    game->pads[p].on.button = 0;
+                    game->pads[p].off.button = 0;
+                }
+            }
+
+            Game_play_move(game);
+        }
+
+        graph->dt_num_60fps_frames = total_dt_frames;
+        graph->dt = total_dt;
+#else
         Game_play_move(game);
+#endif
     }
     game->doing_point = 0;
     game->doing_point_specific = 0xAA;

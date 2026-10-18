@@ -44,6 +44,7 @@ add_compile_options(
     -O2
     -fno-strict-aliasing
     -fwrapv
+    -ffp-contract=off
 )
 
 # The decomp calls bcopy/bzero/bcmp (and a few libc functions) without

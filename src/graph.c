@@ -443,6 +443,12 @@ static void graph_main(GRAPH* this, GAME* game) {
 }
 #endif
 
+#ifdef TARGET_ANDROID
+int g_pc_logic_steps = 1;
+double g_pc_logic_step_dt = 1.0;
+static double pc_logic_debt = 0.0;
+#endif
+
 extern void graph_proc(void* arg) {
     GRAPH* __graph = &graph_class;
     DLFTBL_GAME* dlftbl = &game_dlftbls[0];
@@ -481,6 +487,29 @@ extern void graph_proc(void* arg) {
                 dt_num_60fps_frames = 4.0;
                 delta_time = dt_num_60fps_frames / 60.0;
             }
+
+#ifdef TARGET_ANDROID
+            g_pc_logic_steps = 1;
+            if (g_frame_limiter > 0 && game->exec == play_main && !g_pc_speedhack_enabled) {
+                double step = 60.0 / (double)g_frame_limiter;
+                int steps;
+
+                pc_logic_debt += dt_num_60fps_frames;
+                steps = (int)(pc_logic_debt / step + 0.1);
+                if (steps < 1) {
+                    steps = 1;
+                }
+                pc_logic_debt -= steps * step;
+                if (pc_logic_debt < 0.0) {
+                    pc_logic_debt = 0.0;
+                }
+
+                g_pc_logic_steps = steps;
+                g_pc_logic_step_dt = step;
+                dt_num_60fps_frames = steps * step;
+                delta_time = dt_num_60fps_frames / 60.0;
+            }
+#endif
 
 #ifdef TARGET_PC
             if (g_pc_speedhack_enabled) {
