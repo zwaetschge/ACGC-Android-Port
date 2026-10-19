@@ -24,7 +24,7 @@ data; the launcher walks you through importing your own disc.
 
 ## Features
 
-- Full game, Dolphin-compatible GCI saves (app-private storage), 32- and 64-bit ARM
+- Full game, Dolphin-compatible GCI saves (`Android/media`), 32- and 64-bit ARM
 - Fullscreen with hor+ widescreen (16:9, 16:10, …) and a widened UI (dialogs, choices, inventory, HUD)
 - Gamepad, keyboard and an on-screen **touch overlay** (GameCube layout, hides when a controller is used)
 - Outdoor C-stick camera and the QoL options of upstream 0.9.3 (bells to wallet, fast text, tree shaking with net/rod, …)
@@ -64,8 +64,10 @@ Settings that the original game has no menu for are in the in-game options: pres
 keyboard) while playing. *Gameplay* has **Nook's job** (skip the part-time job; a running job is finished on the
 next load) and **Clock** (reset the in-game clock to the device time on every load).
 
-Data lives in the app's private storage (`files/rom`, `files/texture_pack`, `files/translations`,
-`files/save`) and is removed when the app is uninstalled. Back up `files/save` first.
+The game disc lives in the app's private storage (`files/rom`) and is removed when the app is
+uninstalled. Saves, settings, the texture pack and translations live in
+`Android/media/com.acpc.port/` (`save`, `settings.ini`, `texture_pack`, `translations`), which file managers and
+Syncthing can access. Data from older versions is moved there on the first launch.
 
 ## Building
 

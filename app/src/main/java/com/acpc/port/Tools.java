@@ -92,12 +92,12 @@ final class Tools {
 
     static void generateTranslation(Context ctx, File usDisc, File eurDisc, String lang, Progress p) {
         tasks(ctx).callAttr("generate_translation", usDisc.getAbsolutePath(), eurDisc.getAbsolutePath(),
-                lang, ctx.getFilesDir().getAbsolutePath(),
+                lang, Storage.dataDir(ctx).getAbsolutePath(),
                 new File(ctx.getCacheDir(), "l10n-work").getAbsolutePath(), p);
     }
 
     static boolean hasTranslation(Context ctx, String lang) {
-        return new File(ctx.getFilesDir(), "translations/" + lang + "/msg.bin").isFile();
+        return new File(Storage.dataDir(ctx), "translations/" + lang + "/msg.bin").isFile();
     }
 
     /** Writes the game language for the chosen UI language (English when no translation exists). */
@@ -108,7 +108,7 @@ final class Tools {
 
     /* settings.ini is owned by the game; only the [Localization] language key is edited here. */
     private static File settingsFile(Context ctx) {
-        return new File(ctx.getFilesDir(), "settings.ini");
+        return new File(Storage.dataDir(ctx), "settings.ini");
     }
 
     static String getLanguage(Context ctx) {

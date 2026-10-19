@@ -20,7 +20,7 @@ public final class RomManager {
         return dir;
     }
 
-    /** First disc image found in files/rom (the native side scans the same dir). */
+    /** First disc image found in rom/ (the native side scans the same dir). */
     public static File findRom(Context ctx) {
         File[] files = romDir(ctx).listFiles();
         if (files == null) return null;

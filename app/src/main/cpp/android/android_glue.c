@@ -1,10 +1,9 @@
 /* android_glue.c — Android platform glue for the AC PC port.
  *
- * - chdir() into the app's internal storage directory so every relative
- *   path the port uses (settings.ini, keybindings.ini, rom/, save/,
- *   texture_pack/, shaders/) works unchanged.
- * - redirect stdout/stderr into files (debug builds: adb shell run-as
- *   com.acpc.port cat files/stdout.log).
+ * - chdir() into the data directory (ACPC_DATA_DIR, set by GameActivity)
+ *   so every relative path the port uses (settings.ini, keybindings.ini,
+ *   save/, texture_pack/, shaders/) works unchanged.
+ * - redirect stdout/stderr into files there.
  * - rewrite desktop GLSL (#version 330 core) to OpenGL ES 3 GLSL
  *   (#version 300 es + precision qualifiers) before compilation.
  */
@@ -25,10 +24,11 @@ static void ensure_dir(const char* path) {
 }
 
 void android_bootstrap(void) {
-    const char* base = SDL_AndroidGetInternalStoragePath();
+    const char* data = getenv("ACPC_DATA_DIR");
+    const char* base = data ? data : SDL_AndroidGetInternalStoragePath();
     if (base) {
         chdir(base);
-        ensure_dir("rom");
+        if (!getenv("ACPC_ROM_DIR")) ensure_dir("rom");
         ensure_dir("save");
         ensure_dir("save/card_a");
         ensure_dir("save/card_b");

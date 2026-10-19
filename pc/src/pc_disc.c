@@ -286,8 +286,16 @@ static int str_ends_ci(const char* s, const char* suffix) {
 }
 
 static int find_disc_image(char* out_path, int out_sz) {
-    static const char* dirs[] = { ".", "orig", "rom", NULL };
+    const char* rom_dir = getenv("ACPC_ROM_DIR");
+    const char* dirs[5];
+    int n = 0;
     int d;
+
+    if (rom_dir && rom_dir[0]) dirs[n++] = rom_dir;
+    dirs[n++] = ".";
+    dirs[n++] = "orig";
+    dirs[n++] = "rom";
+    dirs[n] = NULL;
 
     /* deterministic: the embedded image (if extracted) always wins over
      * arbitrary imports sitting in rom/ — an NKit import would pass
@@ -295,6 +303,14 @@ static int find_disc_image(char* out_path, int out_sz) {
     {
         static const char* pref[] = { "rom/GAFE01.iso", "GAFE01.iso", NULL };
         int i;
+        if (rom_dir && rom_dir[0]) {
+            snprintf(out_path, out_sz, "%s/GAFE01.iso", rom_dir);
+            FILE* fp = fopen(out_path, "rb");
+            if (fp) {
+                fclose(fp);
+                return 1;
+            }
+        }
         for (i = 0; pref[i]; i++) {
             FILE* fp = fopen(pref[i], "rb");
             if (fp) {

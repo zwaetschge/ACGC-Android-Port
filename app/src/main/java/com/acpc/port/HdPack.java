@@ -49,7 +49,7 @@ final class HdPack {
     }
 
     static File packDir(Context ctx) {
-        return new File(ctx.getFilesDir(), "texture_pack");
+        return new File(Storage.dataDir(ctx), "texture_pack");
     }
 
     private static File marker(Context ctx) {

@@ -64,11 +64,11 @@ final class Multiplayer {
     }
 
     static File cardA(Context ctx) {
-        return new File(ctx.getFilesDir(), "save/card_a/" + SAVE_NAME);
+        return new File(Storage.dataDir(ctx), "save/card_a/" + SAVE_NAME);
     }
 
     static File cardB(Context ctx) {
-        return new File(ctx.getFilesDir(), "save/card_b/" + SAVE_NAME);
+        return new File(Storage.dataDir(ctx), "save/card_b/" + SAVE_NAME);
     }
 
     /* ---------- actions ---------- */
@@ -149,12 +149,12 @@ final class Multiplayer {
 
     /* ---------- helpers ---------- */
 
-    /** Copies a save directory to files/save-backups/<time>-<label>/. */
+    /** Copies a save directory to save-backups/<time>-<label>/. */
     private static void backup(Context ctx, File dir, String label) throws IOException {
         File[] files = dir.listFiles();
         if (files == null || files.length == 0) return;
         String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(new Date());
-        File dst = new File(ctx.getFilesDir(), "save-backups/" + stamp + "-" + label);
+        File dst = new File(Storage.dataDir(ctx), "save-backups/" + stamp + "-" + label);
         if (!dst.mkdirs() && !dst.isDirectory()) throw new IOException("cannot create " + dst);
         for (File f : files) {
             if (f.isFile()) Files.copy(f.toPath(), new File(dst, f.getName()).toPath(),

@@ -29,7 +29,7 @@ public class GameActivity extends SDLActivity {
 
     @Override
     protected String[] getArguments() {
-        return new String[0]; // "--verbose" enables the diagnostic logs in files/stdout.log
+        return new String[0]; // "--verbose" enables the diagnostic logs in stdout.log
     }
 
     @Override
@@ -87,11 +87,18 @@ public class GameActivity extends SDLActivity {
         return super.dispatchGenericMotionEvent(ev);
     }
 
-    /** The native layer loads shaders and writes saves relative to filesDir. */
+    /** The native layer loads shaders and writes saves relative to the data dir. */
     private void extractAssetsOnce() {
-        File dir = getFilesDir();
+        Storage.migrate(this);
+        File dir = Storage.dataDir(this);
+        try {
+            android.system.Os.setenv("ACPC_DATA_DIR", dir.getAbsolutePath(), true);
+            android.system.Os.setenv("ACPC_ROM_DIR", RomManager.romDir(this).getAbsolutePath(), true);
+        } catch (android.system.ErrnoException e) {
+            throw new IllegalStateException(e);
+        }
         File[] dirs = {
-                new File(dir, "rom"), new File(dir, "save"),
+                RomManager.romDir(this), new File(dir, "save"),
                 new File(dir, "save/card_a"), new File(dir, "save/card_b"),
                 new File(dir, "texture_pack"), new File(dir, "shaders"),
         };
