@@ -43,7 +43,8 @@ extern "C" {
 #define SHORTANGLE2RAD(sangle) ((F_PI / 32768.0f) * ((f32)(sangle)))
 
 /* degrees -> short angle */
-#define DEG2SHORT_ANGLE(deg) ((s16)((deg) * (65536.0f / 360.0f)))
+/* goes through int: (s16) of a float >= 32768 is UB and clang drops the code after it */
+#define DEG2SHORT_ANGLE(deg) ((s16)(int)((deg) * (65536.0f / 360.0f)))
 #define DEG2SHORT_ANGLE2(deg) ((int)((deg) * (65536.0f / 360.0f)))
 #define DEG2SHORT_ANGLE3(deg) ((deg) * (65536.0f / 360.0f))
 
